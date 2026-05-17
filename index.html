@@ -627,7 +627,7 @@ function renderHistory(records) {
   const fmt = v => 'R$ ' + (parseFloat(v) || 0).toFixed(2).replace('.', ',');
   list.innerHTML = records.map(r => {
     const f    = r.fields;
-    const date = f.cadastro ? new Date(f.cadastro + 'T12:00:00').toLocaleDateString('pt-BR') : '—';
+    const date = fmtDate(f.cadastro);
     return `<div class="proj-card" onclick="openModal('${r.id}')">
       <div class="proj-card-header">
         <div class="proj-name">${f.projeto || '—'}</div>
@@ -653,7 +653,7 @@ function openModal(id) {
   if (!record) return;
   const f    = record.fields;
   const fmt  = v => 'R$ ' + (parseFloat(v) || 0).toFixed(2).replace('.', ',');
-  const date = f.cadastro ? new Date(f.cadastro + 'T12:00:00').toLocaleDateString('pt-BR') : '—';
+  const date = fmtDate(f.cadastro);
 
   document.getElementById('modal-title').textContent = f.projeto || '—';
   document.getElementById('modal-sub').textContent   = `${f.tipomaterial || '—'} · ${date}`;
@@ -696,6 +696,24 @@ function showToast(msg, type = '') {
   t.textContent = msg;
   t.className = 'toast show ' + type;
   setTimeout(() => { t.className = 'toast'; }, 3200);
+}
+
+// ── DATE PARSE ────────────────────────────────────────────
+function parseDate(val) {
+  if (!val) return null;
+  // DD/MM/YYYY ou DD/MM/YY
+  if (val.includes('/')) {
+    const [d, m, y] = val.split('/');
+    const year = y.length === 2 ? '20' + y : y;
+    return new Date(`${year}-${m.padStart(2,'0')}-${d.padStart(2,'0')}T12:00:00`);
+  }
+  // YYYY-MM-DD
+  return new Date(val + 'T12:00:00');
+}
+function fmtDate(val) {
+  const d = parseDate(val);
+  if (!d || isNaN(d)) return '—';
+  return d.toLocaleDateString('pt-BR');
 }
 
 // ── INIT ──────────────────────────────────────────────────
