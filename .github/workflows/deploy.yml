@@ -1,0 +1,39 @@
+name: Deploy para GitHub Pages
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Injetar API Key
+        run: sed -i "s|__AIRTABLE_KEY__|${{ secrets.AIRTABLE_KEY }}|g" index.html
+
+      - name: Configurar Pages
+        uses: actions/configure-pages@v4
+
+      - name: Fazer upload dos arquivos
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '.'
+
+      - name: Publicar
+        id: deployment
+        uses: actions/deploy-pages@v4
