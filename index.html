@@ -1,0 +1,890 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Calculadora de Impressão 3D</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0e0f11;
+    --surface: #17191d;
+    --surface2: #1f2127;
+    --border: rgba(255,255,255,0.08);
+    --border2: rgba(255,255,255,0.14);
+    --accent: #e8ff47;
+    --accent-dim: rgba(232,255,71,0.12);
+    --text: #f0f0ee;
+    --muted: #7a7d85;
+    --muted2: #4a4d55;
+    --danger: #ff6b6b;
+    --success: #47ffb2;
+    --mono: 'DM Mono', monospace;
+    --display: 'Syne', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    min-height: 100vh;
+    padding: 0;
+  }
+
+  .header {
+    border-bottom: 1px solid var(--border);
+    padding: 1.5rem 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    background: rgba(14,15,17,0.92);
+    backdrop-filter: blur(8px);
+    z-index: 10;
+  }
+
+  .logo {
+    font-family: var(--display);
+    font-weight: 800;
+    font-size: 1.1rem;
+    letter-spacing: -0.03em;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .logo-dot {
+    width: 10px; height: 10px;
+    background: var(--accent);
+    border-radius: 50%;
+    display: inline-block;
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%,100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.75); }
+  }
+
+  .badge {
+    font-size: 0.65rem;
+    background: var(--accent-dim);
+    color: var(--accent);
+    border: 1px solid rgba(232,255,71,0.2);
+    border-radius: 4px;
+    padding: 3px 8px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .layout {
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: 0;
+    min-height: calc(100vh - 65px);
+  }
+
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; }
+    .result-panel { position: static; border-left: none; border-top: 1px solid var(--border); }
+  }
+
+  .form-area {
+    padding: 2rem;
+    overflow-y: auto;
+  }
+
+  .section-label {
+    font-family: var(--display);
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .section-label::before {
+    content: '';
+    display: inline-block;
+    width: 18px;
+    height: 1px;
+    background: var(--muted2);
+  }
+
+  .section {
+    margin-bottom: 2.5rem;
+  }
+
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+
+  @media (max-width: 600px) {
+    .grid-2 { grid-template-columns: 1fr; }
+  }
+
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  label {
+    font-size: 0.75rem;
+    color: var(--muted);
+    letter-spacing: 0.03em;
+  }
+
+  .input-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  .input-wrap .unit {
+    position: absolute;
+    right: 12px;
+    font-size: 0.75rem;
+    color: var(--muted);
+    pointer-events: none;
+  }
+
+  input[type="number"], select {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 0.9rem;
+    padding: 10px 14px;
+    outline: none;
+    transition: border-color 0.15s;
+    appearance: none;
+    -webkit-appearance: none;
+  }
+
+  input[type="number"]:focus, select:focus {
+    border-color: var(--border2);
+    background: var(--surface2);
+  }
+
+  input[type="number"].has-unit { padding-right: 48px; }
+
+  select { cursor: pointer; }
+
+  .select-wrap { position: relative; }
+  .select-wrap::after {
+    content: '▾';
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--muted);
+    pointer-events: none;
+    font-size: 0.75rem;
+  }
+
+  .slider-field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .slider-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .slider-header label { font-size: 0.75rem; color: var(--muted); }
+
+  .slider-value {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--accent);
+    background: var(--accent-dim);
+    border: 1px solid rgba(232,255,71,0.2);
+    border-radius: 4px;
+    padding: 2px 8px;
+    min-width: 52px;
+    text-align: center;
+  }
+
+  input[type="range"] {
+    width: 100%;
+    -webkit-appearance: none;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--surface2);
+    outline: none;
+    cursor: pointer;
+  }
+
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    transition: transform 0.1s;
+  }
+
+  input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.2); }
+
+  .divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 2rem 0;
+  }
+
+  .preset-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+  }
+
+  .preset-btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    padding: 5px 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: 0.02em;
+  }
+
+  .preset-btn:hover {
+    border-color: var(--border2);
+    color: var(--text);
+    background: var(--surface2);
+  }
+
+  .preset-btn.active {
+    background: var(--accent-dim);
+    border-color: rgba(232,255,71,0.35);
+    color: var(--accent);
+  }
+
+  .result-panel {
+    border-left: 1px solid var(--border);
+    background: var(--surface);
+    padding: 2rem 1.5rem;
+    position: sticky;
+    top: 65px;
+    height: calc(100vh - 65px);
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  .result-title {
+    font-family: var(--display);
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .price-main {
+    font-family: var(--display);
+    font-size: 2.8rem;
+    font-weight: 800;
+    color: var(--accent);
+    letter-spacing: -0.04em;
+    line-height: 1;
+  }
+
+  .price-currency {
+    font-size: 1.4rem;
+    vertical-align: top;
+    margin-top: 4px;
+    display: inline-block;
+    font-weight: 700;
+  }
+
+  .price-subtitle {
+    font-size: 0.72rem;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+
+  .breakdown {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .break-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 10px;
+    border-radius: 6px;
+    font-size: 0.78rem;
+    transition: background 0.1s;
+  }
+
+  .break-row:hover { background: var(--surface2); }
+
+  .break-label { color: var(--muted); }
+
+  .break-val {
+    font-weight: 500;
+    color: var(--text);
+  }
+
+  .break-row.total {
+    background: var(--accent-dim);
+    border: 1px solid rgba(232,255,71,0.15);
+    margin-top: 4px;
+  }
+
+  .break-row.total .break-label { color: var(--accent); font-weight: 500; }
+  .break-row.total .break-val { color: var(--accent); font-weight: 700; }
+
+  .bar-chart {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 4px;
+  }
+
+  .bar-item {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .bar-top {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.7rem;
+    color: var(--muted);
+  }
+
+  .bar-track {
+    height: 4px;
+    background: var(--surface2);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.4s cubic-bezier(0.4,0,0.2,1);
+  }
+
+  .bar-fill.material { background: #5eead4; }
+  .bar-fill.energy   { background: #fbbf24; }
+  .bar-fill.machine  { background: #818cf8; }
+  .bar-fill.failure  { background: #f87171; }
+  .bar-fill.margin   { background: var(--accent); }
+
+  .tip-box {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 0.72rem;
+    color: var(--muted);
+    line-height: 1.6;
+    margin-top: auto;
+  }
+
+  .tip-box strong { color: var(--text); }
+
+  .reset-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    padding: 9px 16px;
+    cursor: pointer;
+    width: 100%;
+    transition: all 0.15s;
+    letter-spacing: 0.03em;
+  }
+
+  .reset-btn:hover {
+    border-color: var(--danger);
+    color: var(--danger);
+  }
+
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button { opacity: 0.4; }
+
+  .help {
+    font-size: 0.68rem;
+    color: var(--muted2);
+    line-height: 1.5;
+    margin-top: 2px;
+  }
+
+  .currency-selector { margin-bottom: 1.5rem; }
+
+  .inline-row {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-end;
+  }
+
+  .inline-row .field:first-child { flex: 1; }
+  .inline-row .field:last-child { width: 100px; }
+
+  .warn {
+    font-size: 0.7rem;
+    color: var(--danger);
+    margin-top: 3px;
+  }
+
+  @media print {
+    .header, .form-area { display: none; }
+    .layout { grid-template-columns: 1fr; }
+    .result-panel { border: none; position: static; }
+  }
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="logo">
+    <span class="logo-dot"></span>
+    Print<span style="color:var(--accent)">Cost</span>
+  </div>
+  <span class="badge">Calculadora 3D</span>
+</header>
+
+<div class="layout">
+  <div class="form-area">
+
+    <!-- Presets -->
+    <div class="section">
+      <div class="section-label">Presets rápidos</div>
+      <div class="preset-row" id="presets">
+        <button class="preset-btn" data-preset="pla">PLA · Simples</button>
+        <button class="preset-btn" data-preset="petg">PETG · Mecânico</button>
+        <button class="preset-btn" data-preset="abs">ABS · Industrial</button>
+        <button class="preset-btn" data-preset="resin">Resina · Detalhado</button>
+      </div>
+    </div>
+
+    <!-- Material -->
+    <div class="section">
+      <div class="section-label">Material</div>
+      <div class="grid-2">
+        <div class="field">
+          <label>Tipo de filamento</label>
+          <div class="select-wrap">
+            <select id="material">
+              <option value="pla">PLA</option>
+              <option value="petg">PETG</option>
+              <option value="abs">ABS</option>
+              <option value="tpu">TPU</option>
+              <option value="nylon">Nylon</option>
+              <option value="resin">Resina</option>
+              <option value="custom">Personalizado</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label>Custo do material</label>
+          <div class="input-wrap">
+            <input type="number" id="mat_price" class="has-unit" value="80" min="0" step="0.01">
+            <span class="unit" id="unit_label">R$/kg</span>
+          </div>
+        </div>
+        <div class="field">
+          <label>Peso da peça (estimado)</label>
+          <div class="input-wrap">
+            <input type="number" id="weight" class="has-unit" value="50" min="0.1" step="0.1">
+            <span class="unit">g</span>
+          </div>
+        </div>
+        <div class="field">
+          <label>Desperdício / suporte</label>
+          <div class="input-wrap">
+            <input type="number" id="waste" class="has-unit" value="10" min="0" max="100" step="1">
+            <span class="unit">%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <!-- Impressora e energia -->
+    <div class="section">
+      <div class="section-label">Máquina &amp; Energia</div>
+      <div class="grid-2">
+        <div class="field">
+          <label>Custo da impressora</label>
+          <div class="input-wrap">
+            <input type="number" id="printer_cost" class="has-unit" value="3000" min="0">
+            <span class="unit">R$</span>
+          </div>
+          <span class="help">Valor de compra</span>
+        </div>
+        <div class="field">
+          <label>Vida útil estimada</label>
+          <div class="input-wrap">
+            <input type="number" id="printer_life" class="has-unit" value="5000" min="1">
+            <span class="unit">h</span>
+          </div>
+        </div>
+        <div class="field">
+          <label>Tempo de impressão</label>
+          <div class="input-wrap">
+            <input type="number" id="print_time" class="has-unit" value="4" min="0.1" step="0.1">
+            <span class="unit">h</span>
+          </div>
+        </div>
+        <div class="field">
+          <label>Consumo elétrico</label>
+          <div class="input-wrap">
+            <input type="number" id="wattage" class="has-unit" value="150" min="0">
+            <span class="unit">W</span>
+          </div>
+        </div>
+        <div class="field">
+          <label>Tarifa de energia</label>
+          <div class="input-wrap">
+            <input type="number" id="energy_price" class="has-unit" value="0.85" min="0" step="0.01">
+            <span class="unit">R$/kWh</span>
+          </div>
+        </div>
+        <div class="field">
+          <label>Manutenção</label>
+          <div class="input-wrap">
+            <input type="number" id="maintenance" class="has-unit" value="0.05" min="0" step="0.01">
+            <span class="unit">R$/h</span>
+          </div>
+          <span class="help">Custo médio de reposição de peças</span>
+        </div>
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <!-- Falha e margem -->
+    <div class="section">
+      <div class="section-label">Risco &amp; Margem</div>
+      <div class="grid-2">
+        <div class="slider-field">
+          <div class="slider-header">
+            <label>Taxa de falha</label>
+            <span class="slider-value" id="failure_val">5%</span>
+          </div>
+          <input type="range" id="failure" min="0" max="50" value="5" step="1">
+          <span class="help">Probabilidade de reimpressão por falha</span>
+        </div>
+        <div class="slider-field">
+          <div class="slider-header">
+            <label>Margem de lucro</label>
+            <span class="slider-value" id="margin_val">30%</span>
+          </div>
+          <input type="range" id="margin" min="0" max="200" value="30" step="1">
+        </div>
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <!-- Mão de obra e pós-processo -->
+    <div class="section">
+      <div class="section-label">Mão de obra &amp; Pós-processamento</div>
+      <div class="grid-2">
+        <div class="field">
+          <label>Valor hora de trabalho</label>
+          <div class="input-wrap">
+            <input type="number" id="labor_rate" class="has-unit" value="0" min="0" step="0.5">
+            <span class="unit">R$/h</span>
+          </div>
+        </div>
+        <div class="field">
+          <label>Tempo de setup</label>
+          <div class="input-wrap">
+            <input type="number" id="labor_time" class="has-unit" value="0.25" min="0" step="0.05">
+            <span class="unit">h</span>
+          </div>
+          <span class="help">Preparação + remoção da peça</span>
+        </div>
+        <div class="field">
+          <label>Custo de pós-processo</label>
+          <div class="input-wrap">
+            <input type="number" id="post_cost" class="has-unit" value="0" min="0" step="0.5">
+            <span class="unit">R$</span>
+          </div>
+          <span class="help">Lixamento, pintura, remoção de suporte</span>
+        </div>
+        <div class="field">
+          <label>Overhead / indiretos</label>
+          <div class="input-wrap">
+            <input type="number" id="overhead" class="has-unit" value="0" min="0" step="0.5">
+            <span class="unit">R$</span>
+          </div>
+          <span class="help">Aluguel, internet, plataformas</span>
+        </div>
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <!-- Quantidade -->
+    <div class="section">
+      <div class="section-label">Quantidade</div>
+      <div class="grid-2">
+        <div class="field">
+          <label>Número de peças</label>
+          <div class="input-wrap">
+            <input type="number" id="qty" class="has-unit" value="1" min="1" step="1">
+            <span class="unit">un</span>
+          </div>
+        </div>
+        <div class="field">
+          <label>Desconto por volume</label>
+          <div class="input-wrap">
+            <input type="number" id="vol_discount" class="has-unit" value="0" min="0" max="80" step="1">
+            <span class="unit">%</span>
+          </div>
+          <span class="help">Desconto aplicado quando qty &gt; 1</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Painel de resultado -->
+  <div class="result-panel">
+    <div>
+      <div class="result-title">Preço por peça</div>
+      <div class="price-main">
+        <span class="price-currency">R$</span>
+        <span id="total_display">0,00</span>
+      </div>
+      <div class="price-subtitle" id="total_sub">Incluindo 30% de margem</div>
+    </div>
+
+    <div class="breakdown" id="breakdown">
+      <div class="break-row">
+        <span class="break-label">Material</span>
+        <span class="break-val" id="r_material">R$ 0,00</span>
+      </div>
+      <div class="break-row">
+        <span class="break-label">Energia elétrica</span>
+        <span class="break-val" id="r_energy">R$ 0,00</span>
+      </div>
+      <div class="break-row">
+        <span class="break-label">Depreciação da máquina</span>
+        <span class="break-val" id="r_machine">R$ 0,00</span>
+      </div>
+      <div class="break-row">
+        <span class="break-label">Manutenção</span>
+        <span class="break-val" id="r_maint">R$ 0,00</span>
+      </div>
+      <div class="break-row">
+        <span class="break-label">Mão de obra</span>
+        <span class="break-val" id="r_labor">R$ 0,00</span>
+      </div>
+      <div class="break-row">
+        <span class="break-label">Pós-processo + overhead</span>
+        <span class="break-val" id="r_post">R$ 0,00</span>
+      </div>
+      <div class="break-row">
+        <span class="break-label">Reserva de falha</span>
+        <span class="break-val" id="r_failure">R$ 0,00</span>
+      </div>
+      <div class="break-row" style="padding: 6px 10px;">
+        <span class="break-label" style="color:var(--muted2)">Custo base</span>
+        <span class="break-val" id="r_base" style="color:var(--muted)">R$ 0,00</span>
+      </div>
+      <div class="break-row">
+        <span class="break-label">Margem de lucro</span>
+        <span class="break-val" id="r_margin">R$ 0,00</span>
+      </div>
+      <div class="break-row total">
+        <span class="break-label">Total por peça</span>
+        <span class="break-val" id="r_total">R$ 0,00</span>
+      </div>
+    </div>
+
+    <div>
+      <div class="result-title" style="margin-bottom:10px">Distribuição dos custos</div>
+      <div class="bar-chart" id="bars"></div>
+    </div>
+
+    <div id="qty_summary" style="display:none">
+      <div class="break-row" style="background:var(--surface2);border-radius:6px;">
+        <span class="break-label" style="color:var(--text)">Total (<span id="qty_label">1</span> peças)</span>
+        <span class="break-val" style="color:var(--success)" id="r_total_qty">R$ 0,00</span>
+      </div>
+    </div>
+
+    <div class="tip-box" id="tip_box">
+      <strong>Dica:</strong> ajuste os campos ao lado para ver o custo atualizado em tempo real.
+    </div>
+
+    <button class="reset-btn" onclick="resetAll()">↺ Resetar tudo</button>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const fmt = v => v.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+
+const PRESETS = {
+  pla:   { material:'pla',  mat_price:80,  weight:50,  waste:8,  printer_cost:2500, printer_life:5000, print_time:3,   wattage:120, energy_price:0.85, maintenance:0.04, failure:3,  margin:25, labor_rate:0,  labor_time:0.2, post_cost:0,  overhead:0 },
+  petg:  { material:'petg', mat_price:110, weight:60,  waste:12, printer_cost:3500, printer_life:4500, print_time:5,   wattage:150, energy_price:0.85, maintenance:0.06, failure:5,  margin:30, labor_rate:20, labor_time:0.3, post_cost:5,  overhead:2 },
+  abs:   { material:'abs',  mat_price:90,  weight:55,  waste:20, printer_cost:4000, printer_life:4000, print_time:6,   wattage:180, energy_price:0.85, maintenance:0.08, failure:10, margin:35, labor_rate:25, labor_time:0.4, post_cost:10, overhead:3 },
+  resin: { material:'resin',mat_price:180, weight:30,  waste:5,  printer_cost:5000, printer_life:3000, print_time:4,   wattage:60,  energy_price:0.85, maintenance:0.10, failure:8,  margin:40, labor_rate:30, labor_time:0.5, post_cost:15, overhead:5 },
+};
+
+function applyPreset(key) {
+  const p = PRESETS[key];
+  Object.entries(p).forEach(([k,v]) => {
+    const el = $(k);
+    if(el) el.value = v;
+  });
+  document.querySelectorAll('.preset-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.preset === key);
+  });
+  $('failure_val').textContent = p.failure + '%';
+  $('margin_val').textContent = p.margin + '%';
+  calc();
+}
+
+function resetAll() {
+  applyPreset('pla');
+  $('qty').value = 1;
+  $('vol_discount').value = 0;
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+}
+
+function getNum(id) { return parseFloat($(id).value) || 0; }
+
+function calc() {
+  const mat_price    = getNum('mat_price');
+  const weight       = getNum('weight');
+  const waste        = getNum('waste') / 100;
+  const printer_cost = getNum('printer_cost');
+  const printer_life = getNum('printer_life') || 1;
+  const print_time   = getNum('print_time');
+  const wattage      = getNum('wattage');
+  const energy_price = getNum('energy_price');
+  const maintenance  = getNum('maintenance');
+  const failure      = getNum('failure') / 100;
+  const margin       = getNum('margin') / 100;
+  const labor_rate   = getNum('labor_rate');
+  const labor_time   = getNum('labor_time');
+  const post_cost    = getNum('post_cost');
+  const overhead     = getNum('overhead');
+  const qty          = Math.max(1, Math.round(getNum('qty')));
+  const vol_discount = getNum('vol_discount') / 100;
+
+  const mat_cost  = (weight / 1000) * mat_price * (1 + waste);
+  const energy_cost = (wattage / 1000) * print_time * energy_price;
+  const machine_cost = (printer_cost / printer_life) * print_time;
+  const maint_cost = maintenance * print_time;
+  const labor_cost = labor_rate * labor_time;
+  const post_total = post_cost + overhead;
+  const base = mat_cost + energy_cost + machine_cost + maint_cost + labor_cost + post_total;
+  const failure_reserve = base * failure;
+  const base_with_fail = base + failure_reserve;
+  const margin_val = base_with_fail * margin;
+  const total_per_piece = base_with_fail + margin_val;
+
+  let final_price = total_per_piece;
+  if (qty > 1) {
+    final_price = total_per_piece * (1 - vol_discount);
+  }
+
+  $('total_display').textContent = fmt(final_price);
+  $('total_sub').textContent = `Incluindo ${Math.round(margin * 100)}% de margem`;
+
+  const set = (id, v) => $(id).textContent = 'R$ ' + fmt(v);
+  set('r_material', mat_cost);
+  set('r_energy',   energy_cost);
+  set('r_machine',  machine_cost);
+  set('r_maint',    maint_cost);
+  set('r_labor',    labor_cost);
+  set('r_post',     post_total);
+  set('r_failure',  failure_reserve);
+  set('r_base',     base_with_fail);
+  set('r_margin',   margin_val);
+  set('r_total',    final_price);
+
+  const total_qty = final_price * qty;
+  $('qty_label').textContent = qty;
+  $('r_total_qty').textContent = 'R$ ' + fmt(total_qty);
+  $('qty_summary').style.display = qty > 1 ? 'block' : 'none';
+
+  // bars
+  const costs = [
+    { label: 'Material',    val: mat_cost,       cls: 'material' },
+    { label: 'Energia',     val: energy_cost,    cls: 'energy' },
+    { label: 'Máquina',     val: machine_cost + maint_cost, cls: 'machine' },
+    { label: 'Reserva falha', val: failure_reserve, cls: 'failure' },
+    { label: 'Margem',      val: margin_val,     cls: 'margin' },
+  ];
+  const max = Math.max(...costs.map(c => c.val), 0.01);
+  $('bars').innerHTML = costs.map(c => `
+    <div class="bar-item">
+      <div class="bar-top">
+        <span>${c.label}</span>
+        <span>R$ ${fmt(c.val)}</span>
+      </div>
+      <div class="bar-track">
+        <div class="bar-fill ${c.cls}" style="width:${Math.round(c.val/max*100)}%"></div>
+      </div>
+    </div>
+  `).join('');
+
+  // tip
+  let tip = '';
+  if (failure > 0.1) tip = '<strong>Atenção:</strong> taxa de falha alta (+10%). Verifique calibração e adesão da mesa.';
+  else if (mat_cost / final_price > 0.5) tip = '<strong>Material</strong> representa mais de 50% do custo — considere reduzir o peso da peça ou usar suportes mínimos.';
+  else if (margin < 0.15) tip = '<strong>Margem baixa.</strong> Considere ao menos 15-20% para cobrir variações imprevistos.';
+  else tip = `<strong>Custo base:</strong> R$ ${fmt(base_with_fail)} · Margem: R$ ${fmt(margin_val)} · Preço final: R$ ${fmt(final_price)}`;
+  $('tip_box').innerHTML = tip;
+}
+
+// Eventos
+['mat_price','weight','waste','printer_cost','printer_life','print_time','wattage',
+ 'energy_price','maintenance','labor_rate','labor_time','post_cost','overhead','qty','vol_discount']
+  .forEach(id => { const el = $(id); if(el) el.addEventListener('input', calc); });
+
+$('failure').addEventListener('input', e => { $('failure_val').textContent = e.target.value + '%'; calc(); });
+$('margin').addEventListener('input',  e => { $('margin_val').textContent  = e.target.value + '%'; calc(); });
+$('material').addEventListener('change', () => {
+  const mat = $('material').value;
+  const defaults = { pla:80, petg:110, abs:90, tpu:140, nylon:200, resin:180 };
+  if (mat !== 'custom' && defaults[mat]) $('mat_price').value = defaults[mat];
+  calc();
+});
+
+document.querySelectorAll('.preset-btn').forEach(btn => {
+  btn.addEventListener('click', () => applyPreset(btn.dataset.preset));
+});
+
+calc();
+</script>
+</body>
+</html>
