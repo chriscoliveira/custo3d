@@ -470,18 +470,25 @@ async function gravar(){
   const btn = document.getElementById('btn-gravar');
   btn.innerHTML='<span class="spinner"></span> Gravando...';
   btn.disabled=true;
+  const n = v => String(parseFloat(v.toFixed(2)));
   const fields={
-    projeto,tipomaterial:v.mat,valorkg:v.valorkg,materialusado:v.metros,
-    tempo:v.tempo,lucropct:v.lucropct,kwh:v.kwh,fontew:v.fonte,
-    customaterial:  +v.customaterial.toFixed(2),
-    custoenergia:   +v.custoenergia.toFixed(2),
-    custoacabamento:+v.custoacabamento.toFixed(2),
-    custoproducao:  +v.custoproducao.toFixed(2),
-    custooutros:    v.outros,
-    lucrors:        +v.lucrors.toFixed(2),
-    valorvenda:     +v.valorvenda.toFixed(2),
-    peso:           +v.peso.toFixed(2),
-    cadastro:       new Date().toISOString().split('T')[0],
+    projeto,
+    tipomaterial:    v.mat,
+    valorkg:         n(v.valorkg),
+    materialusado:   n(v.metros),
+    tempo:           String(v.tempo),
+    lucropct:        String(v.lucropct),
+    kwh:             String(v.kwh),
+    fontew:          String(v.fonte),
+    customaterial:   n(v.customaterial),
+    custoenergia:    n(v.custoenergia),
+    custoacabamento: n(v.custoacabamento),
+    custoproducao:   n(v.custoproducao),
+    custooutros:     String(v.outros),
+    lucrors:         n(v.lucrors),
+    valorvenda:      n(v.valorvenda),
+    peso:            n(v.peso),
+    cadastro:        new Date().toLocaleDateString('pt-BR'),
   };
   try{
     const res=await fetch(API_URL,{method:'POST',headers:HEADERS,body:JSON.stringify({fields})});
