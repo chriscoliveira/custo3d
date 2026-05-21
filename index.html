@@ -470,26 +470,28 @@ async function gravar(){
   const btn = document.getElementById('btn-gravar');
   btn.innerHTML='<span class="spinner"></span> Gravando...';
   btn.disabled=true;
-  const n = v => v.toFixed(2).replace('.', ',');
-  const fields={
-    projeto,
-    tipomaterial:    v.mat,
-    valorkg:         n(v.valorkg),
-    materialusado:   n(v.metros),
-    tempo:           String(v.tempo),
-    lucropct:        String(v.lucropct),
-    kwh:             String(v.kwh),
-    fontew:          String(v.fonte),
-    customaterial:   n(v.customaterial),
-    custoenergia:    n(v.custoenergia),
-    custoacabamento: n(v.custoacabamento),
-    custoproducao:   n(v.custoproducao),
-    custooutros:     String(v.outros),
-    lucrors:         n(v.lucrors),
-    valorvenda:      n(v.valorvenda),
-    peso:            n(v.peso),
-    cadastro:        new Date().toLocaleDateString('pt-BR'),
-  };
+  const n = v => parseFloat(v.toFixed(2));
+
+const fields = {
+  projeto,
+  tipomaterial:    v.mat,
+  valorkg:         n(v.valorkg),
+  materialusado:   n(v.metros),
+  tempo:           v.tempo,
+  lucropct:        v.lucropct,
+  kwh:             v.kwh,
+  fontew:          v.fonte,
+  customaterial:   n(v.customaterial),
+  custoenergia:    n(v.custoenergia),
+  custoacabamento: n(v.custoacabamento),
+  custoproducao:   n(v.custoproducao),
+  custooutros:     v.outros,
+  lucrors:         n(v.lucrors),
+  valorvenda:      n(v.valorvenda),
+  peso:            n(v.peso),
+  cadastro:        new Date().toLocaleDateString('pt-BR'),
+};
+console.log("VALORKG SENDO ENVIADO:", v.valorkg, n(v.valorkg));
   try{
     const res=await fetch(API_URL,{method:'POST',headers:HEADERS,body:JSON.stringify({fields})});
     //if(!res.ok) throw new Error(await res.text());
