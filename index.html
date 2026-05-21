@@ -691,7 +691,7 @@ function openVenda(record){
   const f = record.fields;
   const fmt = v => (parseFloat(v)||0).toFixed(2);
 
-  document.getElementById('venda-id-produto').value     = record.id;
+  document.getElementById('venda-id-produto').value     = f.id||'';
   document.getElementById('venda-produto-nome').value   = f.projeto||'';
   document.getElementById('venda-custo-material').value = fmt(f.customaterial);
   document.getElementById('venda-custo-energia').value  = fmt(f.custoenergia);
@@ -738,6 +738,7 @@ async function salvarVenda(){
   const lucro     = parseFloat(document.getElementById('venda-lucro').value)||0;
   const obs       = document.getElementById('venda-obs').value.trim();
   const produto   = document.getElementById('venda-produto-nome').value;
+  const idProduto = parseInt(document.getElementById('venda-id-produto').value)||0;
   const matV      = parseFloat(document.getElementById('venda-custo-material').value)||0;
   const engV      = parseFloat(document.getElementById('venda-custo-energia').value)||0;
 
@@ -751,25 +752,46 @@ async function salvarVenda(){
 
   const n = v => parseFloat(v.toFixed(2));
 
-  const fields = {
-    PRODUTO:      produto,
-    COMPRADOR:    comprador,
-    DATA:         data,
-    VALORVENDA:   n(vv),
-    VALORPRODUTO: n(vv),
-    CUSTO:        n(cp),
-    LUCRO:        n(lucro),
-    MATERIAL:     n(matV),
-    ENERGIA:      n(engV),
-    PAGO:         vendaPagoVal,
-    OBSERVACAO:   obs,
-  };
-
   try{
+    // busca maior id_venda atual para gerar o próximo
+    let maxId = 0;
+    let offset = null;
+    do {
+      const url = VENDAS_URL
+        + '?fields[]=id_venda&sort[0][field]=id_venda&sort[0][direction]=desc&pageSize=100'
+        + (offset ? '&offset='+offset : '');
+      const res = await fetch(url, {headers: HEADERS});
+      const data2 = await res.json();
+      if(data2.error) throw new Error(data2.error.message);
+      (data2.records||[]).forEach(r => {
+        const v = parseInt(r.fields.id_venda)||0;
+        if(v > maxId) maxId = v;
+      });
+      offset = data2.offset;
+    } while(offset);
+
+    const novoId = maxId + 1;
+
+    const fields = {
+      id_venda:     novoId,
+      id_produto:   idProduto,
+      PRODUTO:      produto,
+      COMPRADOR:    comprador,
+      DATA:         data,
+      VALORVENDA:   n(vv),
+      VALORPRODUTO: n(vv),
+      CUSTO:        n(cp),
+      LUCRO:        n(lucro),
+      MATERIAL:     n(matV),
+      ENERGIA:      n(engV),
+      PAGO:         vendaPagoVal,
+      OBSERVACAO:   obs,
+    };
+
     const res = await fetch(VENDAS_URL,{method:'POST',headers:HEADERS,body:JSON.stringify({fields})});
     const text = await res.text();
     if(!res.ok) throw new Error(text);
-    showToast('✅ Venda registrada!','success');
+    showToast('✅ Venda registrada! ID #'+novoId,'success');
     closeVendaModalDirect();
     closeModalDirect();
   }catch(e){
