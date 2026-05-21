@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Calculadora de Impressão 3D</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
 :root {
   --bg:       #0d0e11;
@@ -224,9 +225,10 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
 </div>
 
 <div class="tabs">
-  <div class="tab active" id="tab-calc"    onclick="showTab('calc')">Calcular</div>
-  <div class="tab"        id="tab-history" onclick="showTab('history')">Histórico</div>
-  <div class="tab"        id="tab-config"  onclick="showTab('config')">Config</div>
+  <div class="tab active" id="tab-calc"      onclick="showTab('calc')">Calcular</div>
+  <div class="tab"        id="tab-history"   onclick="showTab('history')">Histórico</div>
+  <div class="tab"        id="tab-relatorio" onclick="showTab('relatorio')">Relatório</div>
+  <div class="tab"        id="tab-config"    onclick="showTab('config')">Config</div>
 </div>
 
 <!-- ═══ CALCULAR ═══════════════════════════════════════════ -->
@@ -333,6 +335,44 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
   <div id="history-list">
     <div class="empty"><div class="empty-ico">📋</div><div class="empty-txt">Clique na aba para carregar</div></div>
   </div>
+</div>
+
+<!-- ═══ RELATÓRIO ════════════════════════════════════════════ -->
+<div class="screen" id="screen-relatorio">
+
+  <!-- filtro mês/ano -->
+  <div class="card" style="padding:12px 16px;">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <button class="btn btn-ghost" style="width:36px;padding:0;flex-shrink:0;font-size:1rem;" onclick="relMesAnterior()">‹</button>
+      <div style="flex:1;text-align:center;font-family:var(--display);font-size:1rem;font-weight:700;letter-spacing:.02em;" id="rel-titulo-mes">—</div>
+      <button class="btn btn-ghost" style="width:36px;padding:0;flex-shrink:0;font-size:1rem;" onclick="relMesSeguinte()">›</button>
+    </div>
+  </div>
+
+  <!-- KPI cards -->
+  <div class="result-grid" style="margin-bottom:12px;" id="rel-kpis">
+    <div class="ri"><div class="ri-lbl">Carregando…</div><div class="ri-val">—</div></div>
+  </div>
+
+  <!-- gráfico barras (receita vs custo por semana) -->
+  <div class="card" style="padding:16px;">
+    <div class="slabel">Receita × Custo por semana</div>
+    <canvas id="rel-chart-bar" height="160"></canvas>
+  </div>
+
+  <!-- gráfico pizza pago vs a pagar -->
+  <div class="card" style="padding:16px;">
+    <div class="slabel">Status de pagamento</div>
+    <div style="display:flex;align-items:center;gap:16px;">
+      <canvas id="rel-chart-pie" width="120" height="120" style="flex-shrink:0;"></canvas>
+      <div id="rel-pie-legend" style="font-size:.75rem;line-height:2;"></div>
+    </div>
+  </div>
+
+  <!-- lista de vendas do mês -->
+  <div class="slabel" style="margin-top:4px;">Vendas do mês</div>
+  <div id="rel-lista"></div>
+
 </div>
 
 <!-- ═══ CONFIG ═════════════════════════════════════════════ -->
@@ -467,7 +507,8 @@ function showTab(tab){
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   document.getElementById('screen-'+tab).classList.add('active');
   document.getElementById('tab-'+tab).classList.add('active');
-  if(tab==='history') loadHistory();
+  if(tab==='history')   loadHistory();
+  if(tab==='relatorio') loadRelatorio();
 }
 
 // ── MATERIAL ──────────────────────────────────────────────
@@ -540,38 +581,45 @@ async function gravar(){
   btn.disabled=true;
   const n = v => parseFloat(v.toFixed(2));
 
-const fields = {
-  projeto,
-  tipomaterial:    v.mat,
-  valorkg:         n(v.valorkg),
-  materialusado:   v.metros.toFixed(2),
-  tempo:           v.tempo.toFixed(2),
-  lucropct:        n(v.lucropct),
-  kwh:             n(v.kwh),
-  fontew:          n(v.fonte),
-  customaterial:   n(v.customaterial),
-  custoenergia:    n(v.custoenergia),
-  custoacabamento: n(v.custoacabamento),
-  custoproducao:   n(v.custoproducao),
-  custooutros:     n(v.outros),
-  lucrors:         n(v.lucrors),
-  valorvenda:      n(v.valorvenda),
-  peso:            n(v.peso),
-  cadastro:        new Date().toLocaleDateString('pt-BR'),
-};
-console.log("VALORKG SENDO ENVIADO:", v.valorkg, n(v.valorkg));
   try{
+    // busca maior id atual para gerar o próximo
+    let maxId=0, offset=null;
+    do{
+      const url=API_URL+'?fields[]=id&sort[0][field]=id&sort[0][direction]=desc&pageSize=100'+(offset?'&offset='+offset:'');
+      const r2=await fetch(url,{headers:HEADERS});
+      const d2=await r2.json();
+      if(d2.error) throw new Error(d2.error.message);
+      (d2.records||[]).forEach(r=>{ const val=parseInt(r.fields.id)||0; if(val>maxId) maxId=val; });
+      offset=d2.offset;
+    }while(offset);
+
+    const fields = {
+      id:              maxId+1,
+      projeto,
+      tipomaterial:    v.mat,
+      valorkg:         n(v.valorkg),
+      materialusado:   v.metros.toFixed(2),
+      tempo:           v.tempo.toFixed(2),
+      lucropct:        n(v.lucropct),
+      kwh:             n(v.kwh),
+      fontew:          n(v.fonte),
+      customaterial:   n(v.customaterial),
+      custoenergia:    n(v.custoenergia),
+      custoacabamento: n(v.custoacabamento),
+      custoproducao:   n(v.custoproducao),
+      custooutros:     n(v.outros),
+      lucrors:         n(v.lucrors),
+      valorvenda:      n(v.valorvenda),
+      peso:            n(v.peso),
+      cadastro:        new Date().toLocaleDateString('pt-BR'),
+    };
+
     const res=await fetch(API_URL,{method:'POST',headers:HEADERS,body:JSON.stringify({fields})});
-    //if(!res.ok) throw new Error(await res.text());
-    
-const text = await res.text();
-console.log("RESPOSTA AIRTABLE:", text);
+    const text=await res.text();
+    console.log("RESPOSTA AIRTABLE:", text);
+    if(!res.ok) throw new Error(text);
 
-if(!res.ok){
-  throw new Error(text);
-}
-
-    showToast('✅ Projeto gravado!','success');
+    showToast('✅ Projeto gravado! ID #'+(maxId+1),'success');
     limpar();
   }catch(e){
     showToast('Erro ao gravar. Verifique a conexão.','error');
@@ -801,6 +849,186 @@ async function salvarVenda(){
     btn.innerHTML = '💾 Salvar Venda';
     btn.disabled  = false;
   }
+}
+
+// ── RELATÓRIO ─────────────────────────────────────────────
+let relMes = new Date().getMonth();   // 0-11
+let relAno = new Date().getFullYear();
+let relBarChart = null;
+let relPieChart = null;
+const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+function relMesAnterior(){ relMes--; if(relMes<0){relMes=11;relAno--;} loadRelatorio(); }
+function relMesSeguinte(){ relMes++; if(relMes>11){relMes=0;relAno++;} loadRelatorio(); }
+
+function parseDataVenda(str){
+  if(!str) return null;
+  // aceita dd/mm/aaaa ou dd/mm/aa
+  const p = str.trim().split('/');
+  if(p.length!==3) return null;
+  const year = p[2].length===2 ? '20'+p[2] : p[2];
+  return new Date(`${year}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}T12:00:00`);
+}
+
+async function loadRelatorio(){
+  document.getElementById('rel-titulo-mes').textContent = `${MESES[relMes]} ${relAno}`;
+  document.getElementById('rel-kpis').innerHTML = `<div class="ri" style="grid-column:span 2"><div class="ri-lbl">Carregando…</div><div class="ri-val">—</div></div>`;
+  document.getElementById('rel-lista').innerHTML = '<div class="empty"><div class="empty-ico">⏳</div><div class="empty-txt">Carregando...</div></div>';
+
+  try{
+    // busca todos os registros de vendas
+    let records=[], offset=null;
+    do{
+      const url = VENDAS_URL+'?sort[0][field]=id_venda&sort[0][direction]=desc'+(offset?'&offset='+offset:'');
+      const res = await fetch(url,{headers:HEADERS});
+      const data = await res.json();
+      if(data.error) throw new Error(data.error.message);
+      records = records.concat(data.records||[]);
+      offset = data.offset;
+    }while(offset);
+
+    // filtra pelo mês/ano selecionado
+    const doMes = records.filter(r=>{
+      const d = parseDataVenda(r.fields.DATA);
+      return d && d.getMonth()===relMes && d.getFullYear()===relAno;
+    });
+
+    renderRelatorio(doMes);
+  }catch(e){
+    document.getElementById('rel-kpis').innerHTML = `<div class="ri" style="grid-column:span 2"><div class="ri-lbl" style="color:var(--red)">Erro: ${e.message}</div></div>`;
+  }
+}
+
+function renderRelatorio(vendas){
+  const fmt = v => 'R$ '+(parseFloat(v)||0).toFixed(2).replace('.',',');
+  const n   = v => parseFloat(v)||0;
+
+  const totalVendas   = vendas.reduce((s,r)=>s+n(r.fields.VALORVENDA),0);
+  const totalCusto    = vendas.reduce((s,r)=>s+n(r.fields.CUSTO),0);
+  const totalLucro    = vendas.reduce((s,r)=>s+n(r.fields.LUCRO),0);
+  const totalPago     = vendas.filter(r=>(r.fields.PAGO||'').toLowerCase()==='sim').reduce((s,r)=>s+n(r.fields.VALORVENDA),0);
+  const totalAPagar   = totalVendas - totalPago;
+  const qtdVendas     = vendas.length;
+  const qtdPago       = vendas.filter(r=>(r.fields.PAGO||'').toLowerCase()==='sim').length;
+  const qtdAPagar     = qtdVendas - qtdPago;
+  const margemMedia   = totalVendas>0 ? (totalLucro/totalVendas*100) : 0;
+
+  // KPIs
+  document.getElementById('rel-kpis').innerHTML = `
+    <div class="ri hi" style="grid-column:span 2">
+      <div class="ri-lbl">Receita total</div>
+      <div class="ri-val" style="font-family:var(--display);font-size:1.3rem;color:var(--accent)">${fmt(totalVendas)}</div>
+    </div>
+    <div class="ri">
+      <div class="ri-lbl">Lucro total</div>
+      <div class="ri-val" style="color:var(--green)">${fmt(totalLucro)}</div>
+    </div>
+    <div class="ri">
+      <div class="ri-lbl">Margem média</div>
+      <div class="ri-val">${margemMedia.toFixed(1)}%</div>
+    </div>
+    <div class="ri">
+      <div class="ri-lbl">✔ Recebido</div>
+      <div class="ri-val" style="color:var(--green)">${fmt(totalPago)}</div>
+    </div>
+    <div class="ri">
+      <div class="ri-lbl">⏳ A receber</div>
+      <div class="ri-val" style="color:var(--red)">${fmt(totalAPagar)}</div>
+    </div>
+    <div class="ri">
+      <div class="ri-lbl">Nº vendas</div>
+      <div class="ri-val">${qtdVendas}</div>
+    </div>
+    <div class="ri">
+      <div class="ri-lbl">Custo total</div>
+      <div class="ri-val">${fmt(totalCusto)}</div>
+    </div>
+  `;
+
+  // --- Gráfico de barras: receita vs custo por semana ---
+  // agrupa em semanas do mês (S1=dias 1-7, S2=8-14, S3=15-21, S4=22-28, S5=29+)
+  const semanas = [0,1,2,3,4].map(()=>({receita:0,custo:0}));
+  vendas.forEach(r=>{
+    const d = parseDataVenda(r.fields.DATA);
+    if(!d) return;
+    const s = Math.min(Math.floor((d.getDate()-1)/7), 4);
+    semanas[s].receita += n(r.fields.VALORVENDA);
+    semanas[s].custo   += n(r.fields.CUSTO);
+  });
+  const labels = ['Sem 1','Sem 2','Sem 3','Sem 4','Sem 5'];
+
+  const ctxBar = document.getElementById('rel-chart-bar').getContext('2d');
+  if(relBarChart) relBarChart.destroy();
+  relBarChart = new Chart(ctxBar,{
+    type:'bar',
+    data:{
+      labels,
+      datasets:[
+        {label:'Receita', data:semanas.map(s=>+s.receita.toFixed(2)),
+         backgroundColor:'rgba(200,255,0,0.7)', borderRadius:4},
+        {label:'Custo',   data:semanas.map(s=>+s.custo.toFixed(2)),
+         backgroundColor:'rgba(255,92,92,0.55)', borderRadius:4},
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:true,
+      plugins:{legend:{labels:{color:'#7a7d88',font:{size:11}}}},
+      scales:{
+        x:{ticks:{color:'#7a7d88',font:{size:10}},grid:{color:'rgba(255,255,255,0.05)'}},
+        y:{ticks:{color:'#7a7d88',font:{size:10},callback:v=>'R$'+v.toFixed(0)},grid:{color:'rgba(255,255,255,0.05)'}},
+      }
+    }
+  });
+
+  // --- Gráfico pizza: pago vs a pagar ---
+  const ctxPie = document.getElementById('rel-chart-pie').getContext('2d');
+  if(relPieChart) relPieChart.destroy();
+  relPieChart = new Chart(ctxPie,{
+    type:'doughnut',
+    data:{
+      labels:['Pago','A receber'],
+      datasets:[{
+        data:[+totalPago.toFixed(2), +totalAPagar.toFixed(2)],
+        backgroundColor:['rgba(0,229,160,0.75)','rgba(255,92,92,0.65)'],
+        borderWidth:0,
+      }]
+    },
+    options:{
+      responsive:false, cutout:'65%',
+      plugins:{legend:{display:false}},
+    }
+  });
+
+  document.getElementById('rel-pie-legend').innerHTML = `
+    <div><span style="color:var(--green)">●</span> Pago — ${fmt(totalPago)} (${qtdPago} venda${qtdPago!==1?'s':''})</div>
+    <div><span style="color:var(--red)">●</span> A receber — ${fmt(totalAPagar)} (${qtdAPagar} venda${qtdAPagar!==1?'s':''})</div>
+  `;
+
+  // --- Lista de vendas ---
+  if(!vendas.length){
+    document.getElementById('rel-lista').innerHTML='<div class="empty"><div class="empty-ico">📭</div><div class="empty-txt">Nenhuma venda neste mês.</div></div>';
+    return;
+  }
+  const sorted = [...vendas].sort((a,b)=>{
+    const da=parseDataVenda(a.fields.DATA), db=parseDataVenda(b.fields.DATA);
+    return (db||0)-(da||0);
+  });
+  document.getElementById('rel-lista').innerHTML = sorted.map(r=>{
+    const f=r.fields;
+    const pago=(f.PAGO||'').toLowerCase()==='sim';
+    return `<div class="proj-card" style="border-left-color:${pago?'var(--green)':'var(--red)'}">
+      <div class="pch">
+        <div class="pname" style="font-size:.82rem;">${f.PRODUTO||'—'}</div>
+        <div class="pprice">${fmt(f.VALORVENDA)}</div>
+      </div>
+      <div class="pmeta">
+        <span class="ptag" style="${pago?'':'background:var(--redbg);color:var(--red);'}">${pago?'✔ Pago':'⏳ A receber'}</span>
+        <span>${f.COMPRADOR||'—'}</span>
+        <span>Lucro: ${fmt(f.LUCRO)}</span>
+      </div>
+      <div class="pdate">${f.DATA||'—'}</div>
+    </div>`;
+  }).join('');
 }
 
 // ── TOAST ─────────────────────────────────────────────────
