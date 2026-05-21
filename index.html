@@ -470,7 +470,7 @@ async function gravar(){
   const btn = document.getElementById('btn-gravar');
   btn.innerHTML='<span class="spinner"></span> Gravando...';
   btn.disabled=true;
-  const n = v => String(parseFloat(v.toFixed(2)));
+  const n = v => v.toFixed(2).replace('.', ',');
   const fields={
     projeto,
     tipomaterial:    v.mat,
