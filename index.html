@@ -216,53 +216,19 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
 </head>
 <body>
 
-<!-- TELA DE LOGIN -->
-<div id="login-screen" style="
-  display:flex; align-items:center; justify-content:center;
-  min-height:100vh; background:var(--bg); padding:24px;
-">
-  <div style="width:100%;max-width:340px;">
-    <div style="text-align:center;margin-bottom:32px;">
-      <div class="logo" style="justify-content:center;margin-bottom:8px;">
-        <span class="logo-dot"></span>
-        <span>Calculadora <span style="color:var(--accent)">3D</span></span>
-      </div>
-      <div style="color:var(--muted);font-size:.8rem;">Faça login para continuar</div>
-    </div>
-    <div class="card" style="padding:24px;display:flex;flex-direction:column;gap:14px;">
-      <div class="field">
-        <label>Usuário</label>
-        <input type="text" id="login-usuario" placeholder="seu usuário"
-               autocomplete="username"
-               onkeydown="if(event.key==='Enter') document.getElementById('login-senha').focus()">
-      </div>
-      <div class="field">
-        <label>Senha</label>
-        <input type="password" id="login-senha" placeholder="sua senha"
-               autocomplete="current-password"
-               onkeydown="if(event.key==='Enter') fazerLogin()">
-      </div>
-      <div id="login-erro" style="color:var(--red);font-size:.78rem;min-height:16px;"></div>
-      <button class="btn btn-accent" id="btn-login" onclick="fazerLogin()" style="width:100%;">Entrar</button>
-    </div>
-  </div>
-</div>
-
-<!-- APP (oculto até login) -->
-<div id="app" style="display:none;">
-
 <div class="hdr">
   <div class="logo">
     <span class="logo-dot"></span>
-    Custo de <span>Impressão 3D</span>
+    Print<span>Cost</span>
   </div>
-  <button onclick="logout()" style="background:none;border:none;color:var(--muted);font-family:var(--mono);font-size:.72rem;cursor:pointer;padding:4px 8px;border-radius:6px;" title="Sair">⏻ Sair</button>
+  <div style="font-size:.65rem;color:var(--muted);letter-spacing:.06em;">IMPRESSÃO 3D</div>
 </div>
 
 <div class="tabs">
   <div class="tab active" id="tab-calc"      onclick="showTab('calc')">Calcular</div>
   <div class="tab"        id="tab-history"   onclick="showTab('history')">Catálogo</div>
-  <div class="tab"        id="tab-relatorio" onclick="showTab('relatorio')">Vendas</div>
+  <div class="tab"        id="tab-relatorio" onclick="showTab('relatorio')">Relatório</div>
+  <div class="tab"        id="tab-devedores" onclick="showTab('devedores')">Devedores</div>
   <div class="tab"        id="tab-config"    onclick="showTab('config')">Config</div>
 </div>
 
@@ -410,6 +376,20 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
 
 </div>
 
+<!-- ═══ DEVEDORES ════════════════════════════════════════════ -->
+<div class="screen" id="screen-devedores">
+
+  <div class="card" style="padding:12px 16px;display:flex;align-items:center;justify-content:space-between;">
+    <div style="font-family:var(--display);font-size:.9rem;font-weight:700;">A receber</div>
+    <div id="dev-total-geral" style="font-family:var(--display);font-size:1rem;color:var(--red);font-weight:700;">—</div>
+  </div>
+
+  <div id="dev-lista">
+    <div class="empty"><div class="empty-ico">⏳</div><div class="empty-txt">Carregando...</div></div>
+  </div>
+
+</div>
+
 <!-- ═══ CONFIG ═════════════════════════════════════════════ -->
 <div class="screen" id="screen-config">
   <div class="cfg-note">⚡ KWh e Fonte são salvos localmente e usados automaticamente nos cálculos.</div>
@@ -542,82 +522,11 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
 </div>
 
 <script>
-const WORKER_URL  = 'https://calculadora-3d.christian-coliveira.workers.dev';
-const BASE_ID     = 'app4gu7j0pSeCngt8';
-const TABLE       = 'projetos3d';
-const API_URL     = `${WORKER_URL}/airtable/${encodeURIComponent(TABLE)}`;
-const VENDAS_URL  = `${WORKER_URL}/airtable/vendas`;
-
-// ── AUTH ──────────────────────────────────────────────────
-function getToken(){ return sessionStorage.getItem('jwt'); }
-function setToken(t){ sessionStorage.setItem('jwt', t); }
-function clearToken(){ sessionStorage.removeItem('jwt'); }
-
-function getHeaders(){
-  return {'Authorization':`Bearer ${getToken()}`,'Content-Type':'application/json'};
-}
-// alias usado pelo código existente
-const HEADERS = new Proxy({}, { get:(_,k)=>getHeaders()[k] });
-
-function authFetch(url, opts={}){
-  opts.headers = {...(opts.headers||{}), ...getHeaders()};
-  return fetch(url, opts).then(r=>{
-    if(r.status===401){ logout(); throw new Error('Sessão expirada'); }
-    return r;
-  });
-}
-
-function logout(){
-  clearToken();
-  showLogin();
-}
-
-function showLogin(){
-  document.getElementById('app').style.display   = 'none';
-  document.getElementById('login-screen').style.display = 'flex';
-  document.getElementById('login-erro').textContent = '';
-  document.getElementById('login-usuario').value  = '';
-  document.getElementById('login-senha').value    = '';
-}
-
-function showApp(){
-  document.getElementById('login-screen').style.display = 'none';
-  document.getElementById('app').style.display          = 'block';
-}
-
-async function fazerLogin(){
-  const usuario = document.getElementById('login-usuario').value.trim();
-  const senha   = document.getElementById('login-senha').value;
-  const btn     = document.getElementById('btn-login');
-  const erro    = document.getElementById('login-erro');
-
-  if(!usuario || !senha){ erro.textContent='Preencha todos os campos.'; return; }
-
-  btn.innerHTML = '<span class="spinner"></span> Entrando...';
-  btn.disabled  = true;
-  erro.textContent = '';
-
-  try{
-    const res  = await fetch(`${WORKER_URL}/login`,{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({usuario, senha})
-    });
-    const data = await res.json();
-    if(!res.ok) throw new Error(data.erro||'Erro');
-    setToken(data.token);
-    showApp();
-    loadConfig();
-    calcular();
-  }catch(e){
-    erro.textContent = e.message==='Usuário ou senha incorretos'
-      ? 'Usuário ou senha incorretos.'
-      : 'Erro ao conectar. Tente novamente.';
-  }finally{
-    btn.innerHTML = 'Entrar';
-    btn.disabled  = false;
-  }
-}
+const API_KEY = '__AIRTABLE_KEY__';
+const BASE_ID = 'app4gu7j0pSeCngt8';
+const TABLE   = 'projetos3d';
+const API_URL = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(TABLE)}`;
+const HEADERS = {'Authorization':`Bearer ${API_KEY}`,'Content-Type':'application/json'};
 
 const DENSITY   = {PLA:2.97,PETG:3.04,ABS:2.49,TPU:2.90,Nylon:2.83,ASA:2.54,Resina:2.49};
 const MAT_PRICE = {PLA:80,PETG:110,ABS:90,TPU:140,Nylon:200,ASA:120,Resina:180};
@@ -646,6 +555,7 @@ function showTab(tab){
   document.getElementById('tab-'+tab).classList.add('active');
   if(tab==='history')   loadHistory();
   if(tab==='relatorio') loadRelatorio();
+  if(tab==='devedores') loadDevedores();
 }
 
 // ── MATERIAL ──────────────────────────────────────────────
@@ -723,7 +633,7 @@ async function gravar(){
     let maxId=0, offset=null;
     do{
       const url=API_URL+'?fields[]=id&sort[0][field]=id&sort[0][direction]=desc&pageSize=100'+(offset?'&offset='+offset:'');
-      const r2=await authFetch(url);
+      const r2=await fetch(url,{headers:HEADERS});
       const d2=await r2.json();
       if(d2.error) throw new Error(d2.error.message);
       (d2.records||[]).forEach(r=>{ const val=parseInt(r.fields.id)||0; if(val>maxId) maxId=val; });
@@ -751,7 +661,7 @@ async function gravar(){
       cadastro:        new Date().toLocaleDateString('pt-BR'),
     };
 
-    const res=await authFetch(API_URL,{method:'POST',body:JSON.stringify({fields})});
+    const res=await fetch(API_URL,{method:'POST',headers:HEADERS,body:JSON.stringify({fields})});
     const text=await res.text();
     console.log("RESPOSTA AIRTABLE:", text);
     if(!res.ok) throw new Error(text);
@@ -785,7 +695,7 @@ async function loadHistory(){
     let records=[],offset=null;
     do{
       const url=API_URL+'?sort[0][field]=cadastro&sort[0][direction]=desc'+(offset?'&offset='+offset:'');
-      const res=await authFetch(url);
+      const res=await fetch(url,{headers:HEADERS});
       const data=await res.json();
       if(data.error) throw new Error(data.error.message);
       records=records.concat(data.records||[]);
@@ -858,7 +768,7 @@ function closeModalDirect(){document.getElementById('modal').classList.remove('o
 async function deleteRecord(id){
   if(!confirm('Excluir este projeto permanentemente?')) return;
   try{
-    const res=await authFetch(API_URL+'/'+id,{method:'DELETE'});
+    const res=await fetch(API_URL+'/'+id,{method:'DELETE',headers:HEADERS});
     if(!res.ok) throw new Error();
     showToast('Projeto excluído!','success');
     closeModalDirect();
@@ -867,7 +777,8 @@ async function deleteRecord(id){
 }
 
 // ── VENDA ─────────────────────────────────────────────────
-// VENDAS_URL já definida no topo via WORKER_URL
+const VENDAS_TABLE = 'vendas';
+const VENDAS_URL   = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(VENDAS_TABLE)}`;
 
 let vendaPagoVal = 'sim';
 
@@ -944,7 +855,7 @@ async function salvarVenda(){
       const url = VENDAS_URL
         + '?fields[]=id_venda&sort[0][field]=id_venda&sort[0][direction]=desc&pageSize=100'
         + (offset ? '&offset='+offset : '');
-      const res = await authFetch(url);
+      const res = await fetch(url, {headers: HEADERS});
       const data2 = await res.json();
       if(data2.error) throw new Error(data2.error.message);
       (data2.records||[]).forEach(r => {
@@ -972,7 +883,7 @@ async function salvarVenda(){
       OBSERVACAO:   obs,
     };
 
-    const res = await authFetch(VENDAS_URL,{method:'POST',body:JSON.stringify({fields})});
+    const res = await fetch(VENDAS_URL,{method:'POST',headers:HEADERS,body:JSON.stringify({fields})});
     const text = await res.text();
     if(!res.ok) throw new Error(text);
     showToast('✅ Venda registrada! ID #'+novoId,'success');
@@ -1016,7 +927,7 @@ async function loadRelatorio(){
     let records=[], offset=null;
     do{
       const url = VENDAS_URL+'?sort[0][field]=id_venda&sort[0][direction]=desc'+(offset?'&offset='+offset:'');
-      const res = await authFetch(url);
+      const res = await fetch(url,{headers:HEADERS});
       const data = await res.json();
       if(data.error) throw new Error(data.error.message);
       records = records.concat(data.records||[]);
@@ -1184,7 +1095,7 @@ function openVendaEdit(airtableId){
   // busca o record no DOM via dados do último loadRelatorio
   // os records estão no closure de renderRelatorio — usamos fetch direto
   const url = VENDAS_URL+'/'+airtableId;
-  authFetch(url).then(r=>r.json()).then(rec=>{
+  fetch(url,{headers:HEADERS}).then(r=>r.json()).then(rec=>{
     if(rec.error){ showToast('Erro ao carregar venda.','error'); return; }
     const f = rec.fields;
     const fmt = v => 'R$ '+(parseFloat(v)||0).toFixed(2).replace('.',',');
@@ -1215,8 +1126,9 @@ async function saveVendaEdit(){
   btn.innerHTML='<span class="spinner"></span>';
   btn.disabled=true;
   try{
-    const res = await authFetch(VENDAS_URL+'/'+id,{
+    const res = await fetch(VENDAS_URL+'/'+id,{
       method:'PATCH',
+      headers:HEADERS,
       body:JSON.stringify({fields:{PAGO:veditPagoVal}})
     });
     if(!res.ok) throw new Error(await res.text());
@@ -1239,7 +1151,7 @@ async function deleteVenda(){
   btn.innerHTML='<span class="spinner"></span>';
   btn.disabled=true;
   try{
-    const res = await authFetch(VENDAS_URL+'/'+id,{method:'DELETE'});
+    const res = await fetch(VENDAS_URL+'/'+id,{method:'DELETE',headers:HEADERS});
     if(!res.ok) throw new Error(await res.text());
     showToast('Venda excluída!','success');
     closeVendaEditDirect();
@@ -1249,6 +1161,126 @@ async function deleteVenda(){
     console.error(e);
   }finally{
     btn.innerHTML='🗑️ Excluir';
+    btn.disabled=false;
+  }
+}
+
+// ── DEVEDORES ─────────────────────────────────────────────
+async function loadDevedores(){
+  const lista = document.getElementById('dev-lista');
+  const totalEl = document.getElementById('dev-total-geral');
+  lista.innerHTML = '<div class="empty"><div class="empty-ico">⏳</div><div class="empty-txt">Carregando...</div></div>';
+  totalEl.textContent = '—';
+
+  try{
+    // busca todas as vendas não pagas
+    let records=[], offset=null;
+    do{
+      const url = VENDAS_URL
+        + '?filterByFormula=AND({PAGO}%21%3D%22sim%22)'
+        + '&sort[0][field]=COMPRADOR&sort[0][direction]=asc'
+        + (offset?'&offset='+offset:'');
+      const res = await authFetch(url);
+      const data = await res.json();
+      if(data.error) throw new Error(data.error.message);
+      records = records.concat(data.records||[]);
+      offset = data.offset;
+    }while(offset);
+
+    if(!records.length){
+      lista.innerHTML='<div class="empty"><div class="empty-ico">🎉</div><div class="empty-txt">Nenhum devedor! Tudo pago.</div></div>';
+      totalEl.textContent = 'R$ 0,00';
+      return;
+    }
+
+    // agrupa por comprador
+    const grupos = {};
+    records.forEach(r=>{
+      const f = r.fields;
+      const nome = (f.COMPRADOR||'Sem nome').trim();
+      if(!grupos[nome]) grupos[nome] = {vendas:[], total:0};
+      grupos[nome].vendas.push(r);
+      grupos[nome].total += parseFloat(f.VALORVENDA)||0;
+    });
+
+    const fmt = v => 'R$ '+(parseFloat(v)||0).toFixed(2).replace('.',',');
+    const totalGeral = Object.values(grupos).reduce((s,g)=>s+g.total,0);
+    totalEl.textContent = fmt(totalGeral);
+
+    // ordena por maior dívida primeiro
+    const sorted = Object.entries(grupos).sort((a,b)=>b[1].total-a[1].total);
+
+    lista.innerHTML = sorted.map(([nome, g])=>`
+      <div class="card" style="padding:0;overflow:hidden;margin-bottom:0;">
+        <!-- cabeçalho do devedor -->
+        <div style="
+          display:flex;align-items:center;justify-content:space-between;
+          padding:12px 16px;background:var(--surface2);
+          border-bottom:1px solid var(--border);cursor:pointer;
+        " onclick="toggleDevedor(this)">
+          <div>
+            <div style="font-family:var(--display);font-size:.88rem;font-weight:700;">${nome}</div>
+            <div style="font-size:.72rem;color:var(--muted);margin-top:2px;">${g.vendas.length} venda${g.vendas.length!==1?'s':''} em aberto</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="color:var(--red);font-family:var(--display);font-size:.95rem;font-weight:700;">${fmt(g.total)}</div>
+            <div style="font-size:.68rem;color:var(--muted);margin-top:2px;">▼</div>
+          </div>
+        </div>
+        <!-- lista de vendas do devedor (colapsável) -->
+        <div class="dev-vendas" style="display:none;">
+          ${g.vendas.map(r=>{
+            const f=r.fields;
+            return `<div style="
+              padding:10px 16px;border-bottom:1px solid var(--border);
+              display:flex;align-items:center;justify-content:space-between;
+            ">
+              <div>
+                <div style="font-size:.78rem;">${f.PRODUTO||'—'}</div>
+                <div style="font-size:.7rem;color:var(--muted);margin-top:2px;">${f.DATA||'—'}${f.OBSERVACAO?' · '+f.OBSERVACAO:''}</div>
+              </div>
+              <div style="text-align:right;flex-shrink:0;margin-left:12px;">
+                <div style="color:var(--accent);font-size:.82rem;">${fmt(f.VALORVENDA)}</div>
+                <button onclick="marcarPagoDevedor('${r.id}',this)" style="
+                  margin-top:4px;font-size:.66rem;padding:3px 8px;
+                  background:rgba(0,229,160,.12);color:var(--green);
+                  border:1px solid rgba(0,229,160,.25);border-radius:6px;
+                  cursor:pointer;font-family:var(--mono);
+                ">✔ Marcar pago</button>
+              </div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>
+    `).join('');
+
+  }catch(e){
+    lista.innerHTML=`<div class="empty"><div class="empty-ico">⚠️</div><div class="empty-txt">Erro: ${e.message}</div></div>`;
+  }
+}
+
+function toggleDevedor(header){
+  const vendas = header.nextElementSibling;
+  const arrow  = header.querySelector('div[style*="▼"]');
+  const aberto = vendas.style.display !== 'none';
+  vendas.style.display = aberto ? 'none' : 'block';
+  if(arrow) arrow.textContent = aberto ? '▼' : '▲';
+}
+
+async function marcarPagoDevedor(airtableId, btn){
+  btn.textContent = '...';
+  btn.disabled = true;
+  try{
+    const res = await authFetch(VENDAS_URL+'/'+airtableId,{
+      method:'PATCH',
+      body: JSON.stringify({fields:{PAGO:'sim'}})
+    });
+    if(!res.ok) throw new Error(await res.text());
+    showToast('✅ Marcado como pago!','success');
+    loadDevedores(); // recarrega a lista
+  }catch(e){
+    showToast('Erro ao atualizar.','error');
+    btn.textContent='✔ Marcar pago';
     btn.disabled=false;
   }
 }
@@ -1277,20 +1309,11 @@ function fmtDate(val){
 }
 
 // ── INIT ──────────────────────────────────────────────────
-if(getToken()){
-  showApp();
-  loadConfig();
-  calcular();
-  document.querySelectorAll('input[type="number"],select').forEach(el=>{
-    el.addEventListener('input',calcular);
-  });
-} else {
-  showLogin();
-  document.querySelectorAll('input[type="number"],select').forEach(el=>{
-    el.addEventListener('input',calcular);
-  });
-}
+loadConfig();
+calcular();
+document.querySelectorAll('input[type="number"],select').forEach(el=>{
+  el.addEventListener('input',calcular);
+});
 </script>
-</div><!-- /app -->
 </body>
 </html>
