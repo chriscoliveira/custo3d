@@ -226,7 +226,7 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
 
 <div class="tabs">
   <div class="tab active" id="tab-calc"      onclick="showTab('calc')">Calcular</div>
-  <div class="tab"        id="tab-history"   onclick="showTab('history')">Histórico</div>
+  <div class="tab"        id="tab-history"   onclick="showTab('history')">Catálogo</div>
   <div class="tab"        id="tab-relatorio" onclick="showTab('relatorio')">Relatório</div>
   <div class="tab"        id="tab-config"    onclick="showTab('config')">Config</div>
 </div>
@@ -326,7 +326,7 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
 
 </div>
 
-<!-- ═══ HISTÓRICO ══════════════════════════════════════════ -->
+<!-- ═══ CATÁLOGO ══════════════════════════════════════════ -->
 <div class="screen" id="screen-history">
   <div class="search-wrap">
     <span class="search-icon">🔍</span>
@@ -471,6 +471,37 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
     <div style="display:flex;gap:10px;margin-top:14px;">
       <button class="btn btn-ghost" style="flex:1" onclick="closeVendaModalDirect()">Cancelar</button>
       <button class="btn btn-accent" style="flex:1" id="btn-salvar-venda" onclick="salvarVenda()">💾 Salvar Venda</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL EDITAR VENDA -->
+<div class="overlay" id="modal-venda-edit" onclick="closeVendaEditModal(event)">
+  <div class="modal">
+    <div class="mhandle"></div>
+    <div class="mtitle">✏️ Editar Venda</div>
+    <div class="msub" id="vedit-sub"></div>
+    <input type="hidden" id="vedit-record-id">
+
+    <div class="drow"><span class="dkey">Comprador</span><span class="dval" id="vedit-comprador-lbl"></span></div>
+    <div class="drow"><span class="dkey">Data</span><span class="dval" id="vedit-data-lbl"></span></div>
+    <div class="drow"><span class="dkey">Valor venda</span><span class="dval" id="vedit-valor-lbl"></span></div>
+    <div class="drow"><span class="dkey">Lucro</span><span class="dval" id="vedit-lucro-lbl"></span></div>
+    <div class="drow"><span class="dkey">Energia</span><span class="dval" id="vedit-energia-lbl"></span></div>
+
+    <div class="vdivider"></div>
+    <div class="field">
+      <label>Status de pagamento</label>
+      <div class="vtag-row">
+        <div class="vtag-btn" id="vedit-tag-sim" onclick="setVEditPago('sim')">✔ Pago</div>
+        <div class="vtag-btn" id="vedit-tag-nao" onclick="setVEditPago('não')">✗ Não pago</div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:10px;margin-top:14px;">
+      <button class="btn btn-danger" style="flex:1" id="btn-vedit-delete" onclick="deleteVenda()">🗑️ Excluir</button>
+      <button class="btn btn-ghost"  style="flex:1" onclick="closeVendaEditDirect()">Cancelar</button>
+      <button class="btn btn-accent" style="flex:1" id="btn-vedit-save"   onclick="saveVendaEdit()">💾 Salvar</button>
     </div>
   </div>
 </div>
@@ -913,6 +944,8 @@ function renderRelatorio(vendas){
   const qtdAPagar     = qtdVendas - qtdPago;
   const margemMedia   = totalVendas>0 ? (totalLucro/totalVendas*100) : 0;
 
+  const totalEnergia  = vendas.reduce((s,r)=>s+n(r.fields.ENERGIA),0);
+
   // KPIs
   document.getElementById('rel-kpis').innerHTML = `
     <div class="ri hi" style="grid-column:span 2">
@@ -942,6 +975,10 @@ function renderRelatorio(vendas){
     <div class="ri">
       <div class="ri-lbl">Custo total</div>
       <div class="ri-val">${fmt(totalCusto)}</div>
+    </div>
+    <div class="ri">
+      <div class="ri-lbl">⚡ Energia total</div>
+      <div class="ri-val">${fmt(totalEnergia)}</div>
     </div>
   `;
 
@@ -1016,7 +1053,7 @@ function renderRelatorio(vendas){
   document.getElementById('rel-lista').innerHTML = sorted.map(r=>{
     const f=r.fields;
     const pago=(f.PAGO||'').toLowerCase()==='sim';
-    return `<div class="proj-card" style="border-left-color:${pago?'var(--green)':'var(--red)'}">
+    return `<div class="proj-card" style="border-left-color:${pago?'var(--green)':'var(--red)'};cursor:pointer;" onclick="openVendaEdit('${r.id}')">
       <div class="pch">
         <div class="pname" style="font-size:.82rem;">${f.PRODUTO||'—'}</div>
         <div class="pprice">${fmt(f.VALORVENDA)}</div>
@@ -1026,9 +1063,90 @@ function renderRelatorio(vendas){
         <span>${f.COMPRADOR||'—'}</span>
         <span>Lucro: ${fmt(f.LUCRO)}</span>
       </div>
-      <div class="pdate">${f.DATA||'—'}</div>
+      <div class="pdate">${f.DATA||'—'} · toque para editar</div>
     </div>`;
   }).join('');
+}
+
+// ── EDITAR VENDA ──────────────────────────────────────────
+let veditPagoVal = 'sim';
+let veditRecords = []; // cache da última carga do relatório
+
+// guarda referência dos records carregados para o modal de edição poder acessar
+const _origLoadRelatorio = loadRelatorio;
+
+function openVendaEdit(airtableId){
+  // busca o record no DOM via dados do último loadRelatorio
+  // os records estão no closure de renderRelatorio — usamos fetch direto
+  const url = VENDAS_URL+'/'+airtableId;
+  fetch(url,{headers:HEADERS}).then(r=>r.json()).then(rec=>{
+    if(rec.error){ showToast('Erro ao carregar venda.','error'); return; }
+    const f = rec.fields;
+    const fmt = v => 'R$ '+(parseFloat(v)||0).toFixed(2).replace('.',',');
+    document.getElementById('vedit-record-id').value     = airtableId;
+    document.getElementById('vedit-sub').textContent     = f.PRODUTO||'—';
+    document.getElementById('vedit-comprador-lbl').textContent = f.COMPRADOR||'—';
+    document.getElementById('vedit-data-lbl').textContent      = f.DATA||'—';
+    document.getElementById('vedit-valor-lbl').textContent     = fmt(f.VALORVENDA);
+    document.getElementById('vedit-lucro-lbl').textContent     = fmt(f.LUCRO);
+    document.getElementById('vedit-energia-lbl').textContent   = fmt(f.ENERGIA);
+    setVEditPago((f.PAGO||'não').toLowerCase()==='sim'?'sim':'não');
+    document.getElementById('modal-venda-edit').classList.add('open');
+  }).catch(()=>showToast('Erro ao carregar venda.','error'));
+}
+
+function setVEditPago(val){
+  veditPagoVal = val;
+  document.getElementById('vedit-tag-sim').classList.toggle('sel', val==='sim');
+  document.getElementById('vedit-tag-nao').classList.toggle('sel', val==='não');
+}
+
+function closeVendaEditModal(e){ if(e.target.id==='modal-venda-edit') closeVendaEditDirect(); }
+function closeVendaEditDirect(){ document.getElementById('modal-venda-edit').classList.remove('open'); }
+
+async function saveVendaEdit(){
+  const id  = document.getElementById('vedit-record-id').value;
+  const btn = document.getElementById('btn-vedit-save');
+  btn.innerHTML='<span class="spinner"></span>';
+  btn.disabled=true;
+  try{
+    const res = await fetch(VENDAS_URL+'/'+id,{
+      method:'PATCH',
+      headers:HEADERS,
+      body:JSON.stringify({fields:{PAGO:veditPagoVal}})
+    });
+    if(!res.ok) throw new Error(await res.text());
+    showToast(veditPagoVal==='sim'?'✅ Marcado como pago!':'✅ Marcado como não pago!','success');
+    closeVendaEditDirect();
+    loadRelatorio();
+  }catch(e){
+    showToast('Erro ao salvar.','error');
+    console.error(e);
+  }finally{
+    btn.innerHTML='💾 Salvar';
+    btn.disabled=false;
+  }
+}
+
+async function deleteVenda(){
+  if(!confirm('Excluir esta venda permanentemente?')) return;
+  const id  = document.getElementById('vedit-record-id').value;
+  const btn = document.getElementById('btn-vedit-delete');
+  btn.innerHTML='<span class="spinner"></span>';
+  btn.disabled=true;
+  try{
+    const res = await fetch(VENDAS_URL+'/'+id,{method:'DELETE',headers:HEADERS});
+    if(!res.ok) throw new Error(await res.text());
+    showToast('Venda excluída!','success');
+    closeVendaEditDirect();
+    loadRelatorio();
+  }catch(e){
+    showToast('Erro ao excluir.','error');
+    console.error(e);
+  }finally{
+    btn.innerHTML='🗑️ Excluir';
+    btn.disabled=false;
+  }
 }
 
 // ── TOAST ─────────────────────────────────────────────────
