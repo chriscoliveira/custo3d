@@ -263,6 +263,7 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
   <div class="tab active" id="tab-calc"      onclick="showTab('calc')">Calcular</div>
   <div class="tab"        id="tab-history"   onclick="showTab('history')">Catálogo</div>
   <div class="tab"        id="tab-relatorio" onclick="showTab('relatorio')">Vendas</div>
+  <div class="tab"        id="tab-devedores" onclick="showTab('devedores')">Devedores</div>
   <div class="tab"        id="tab-config"    onclick="showTab('config')">Config</div>
 </div>
 
@@ -407,6 +408,20 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
   <!-- lista de vendas do mês -->
   <div class="slabel" style="margin-top:4px;">Vendas do mês</div>
   <div id="rel-lista"></div>
+
+</div>
+
+<!-- ═══ DEVEDORES ════════════════════════════════════════════ -->
+<div class="screen" id="screen-devedores">
+
+  <div class="card" style="padding:12px 16px;display:flex;align-items:center;justify-content:space-between;">
+    <div style="font-family:var(--display);font-size:.9rem;font-weight:700;">Total a receber</div>
+    <div id="dev-total-geral" style="font-family:var(--display);font-size:1rem;color:var(--red);font-weight:700;">—</div>
+  </div>
+
+  <div id="dev-lista">
+    <div class="empty"><div class="empty-ico">⏳</div><div class="empty-txt">Carregando...</div></div>
+  </div>
 
 </div>
 
@@ -646,6 +661,7 @@ function showTab(tab){
   document.getElementById('tab-'+tab).classList.add('active');
   if(tab==='history')   loadHistory();
   if(tab==='relatorio') loadRelatorio();
+  if(tab==='devedores') loadDevedores();
 }
 
 // ── MATERIAL ──────────────────────────────────────────────
@@ -1250,6 +1266,124 @@ async function deleteVenda(){
   }finally{
     btn.innerHTML='🗑️ Excluir';
     btn.disabled=false;
+  }
+}
+
+// ── DEVEDORES ─────────────────────────────────────────────
+async function loadDevedores(){
+  const lista   = document.getElementById('dev-lista');
+  const totalEl = document.getElementById('dev-total-geral');
+  lista.innerHTML = '<div class="empty"><div class="empty-ico">⏳</div><div class="empty-txt">Carregando...</div></div>';
+  totalEl.textContent = '—';
+
+  try{
+    let records=[], offset=null;
+    do{
+      const url = VENDAS_URL
+        + '?filterByFormula=AND({PAGO}%21%3D%22sim%22)'
+        + '&sort[0][field]=COMPRADOR&sort[0][direction]=asc'
+        + (offset ? '&offset='+offset : '');
+      const res  = await authFetch(url);
+      const data = await res.json();
+      if(data.error) throw new Error(data.error.message);
+      records = records.concat(data.records||[]);
+      offset  = data.offset;
+    }while(offset);
+
+    if(!records.length){
+      lista.innerHTML = '<div class="empty"><div class="empty-ico">🎉</div><div class="empty-txt">Nenhum devedor! Tudo pago.</div></div>';
+      totalEl.textContent = 'R$ 0,00';
+      return;
+    }
+
+    // agrupa por comprador
+    const grupos = {};
+    records.forEach(r=>{
+      const f    = r.fields;
+      const nome = (f.COMPRADOR||'Sem nome').trim();
+      if(!grupos[nome]) grupos[nome] = {vendas:[], total:0};
+      grupos[nome].vendas.push(r);
+      grupos[nome].total += parseFloat(f.VALORVENDA)||0;
+    });
+
+    const fmt        = v => 'R$ '+(parseFloat(v)||0).toFixed(2).replace('.',',');
+    const totalGeral = Object.values(grupos).reduce((s,g)=>s+g.total, 0);
+    totalEl.textContent = fmt(totalGeral);
+
+    // ordena do maior devedor para o menor
+    const sorted = Object.entries(grupos).sort((a,b)=>b[1].total - a[1].total);
+
+    lista.innerHTML = sorted.map(([nome, g])=>`
+      <div class="card" style="padding:0;overflow:hidden;margin-bottom:0;">
+        <div style="
+          display:flex;align-items:center;justify-content:space-between;
+          padding:12px 16px;background:var(--surface2);
+          border-bottom:1px solid var(--border);cursor:pointer;
+        " onclick="toggleDevedor(this)">
+          <div>
+            <div style="font-family:var(--display);font-size:.88rem;font-weight:700;">${nome}</div>
+            <div style="font-size:.72rem;color:var(--muted);margin-top:2px;">${g.vendas.length} venda${g.vendas.length!==1?'s':''} em aberto</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="color:var(--red);font-family:var(--display);font-size:.95rem;font-weight:700;">${fmt(g.total)}</div>
+            <div style="font-size:.68rem;color:var(--muted);margin-top:2px;">▼ ver</div>
+          </div>
+        </div>
+        <div class="dev-vendas" style="display:none;">
+          ${g.vendas.map(r=>{
+            const f = r.fields;
+            return `<div style="
+              padding:10px 16px;border-bottom:1px solid var(--border);
+              display:flex;align-items:center;justify-content:space-between;gap:12px;
+            ">
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:.78rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${f.PRODUTO||'—'}</div>
+                <div style="font-size:.7rem;color:var(--muted);margin-top:2px;">${f.DATA||'—'}${f.OBSERVACAO?' · '+f.OBSERVACAO:''}</div>
+              </div>
+              <div style="text-align:right;flex-shrink:0;">
+                <div style="color:var(--accent);font-size:.82rem;">${fmt(f.VALORVENDA)}</div>
+                <button onclick="marcarPagoDevedor('${r.id}', this)" style="
+                  margin-top:4px;font-size:.66rem;padding:3px 8px;
+                  background:rgba(0,229,160,.12);color:var(--green);
+                  border:1px solid rgba(0,229,160,.25);border-radius:6px;
+                  cursor:pointer;font-family:var(--mono);
+                ">✔ Marcar pago</button>
+              </div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>
+    `).join('');
+
+  }catch(e){
+    lista.innerHTML = `<div class="empty"><div class="empty-ico">⚠️</div><div class="empty-txt">Erro: ${e.message}</div></div>`;
+    console.error(e);
+  }
+}
+
+function toggleDevedor(header){
+  const vendas = header.nextElementSibling;
+  const arrow  = header.querySelector('div[style*="▼"]') || header.querySelector('div[style*="▲"]');
+  const aberto = vendas.style.display !== 'none';
+  vendas.style.display = aberto ? 'none' : 'block';
+  if(arrow) arrow.textContent = aberto ? '▼ ver' : '▲ ocultar';
+}
+
+async function marcarPagoDevedor(airtableId, btn){
+  btn.textContent = '...';
+  btn.disabled    = true;
+  try{
+    const res = await authFetch(VENDAS_URL+'/'+airtableId,{
+      method: 'PATCH',
+      body:   JSON.stringify({fields:{PAGO:'sim'}})
+    });
+    if(!res.ok) throw new Error(await res.text());
+    showToast('✅ Marcado como pago!','success');
+    loadDevedores();
+  }catch(e){
+    showToast('Erro ao atualizar.','error');
+    btn.textContent = '✔ Marcar pago';
+    btn.disabled    = false;
   }
 }
 
