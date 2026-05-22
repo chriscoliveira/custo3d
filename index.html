@@ -1,0 +1,1296 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Calculadora de Impressão 3D</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg:       #0d0e11;
+  --surface:  #14161b;
+  --surface2: #1c1f27;
+  --surface3: #23262f;
+  --border:   rgba(255,255,255,0.07);
+  --border2:  rgba(255,255,255,0.13);
+  --text:     #eeeef0;
+  --muted:    #7a7d88;
+  --muted2:   #454854;
+  --accent:   #c8ff00;
+  --accent2:  rgba(200,255,0,0.1);
+  --accent3:  rgba(200,255,0,0.18);
+  --red:      #ff5c5c;
+  --redbg:    rgba(255,92,92,0.1);
+  --green:    #00e5a0;
+  --mono:     'DM Mono', monospace;
+  --display:  'Syne', sans-serif;
+  --r:        10px;
+  --r2:       14px;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html{background:var(--bg);}
+body{background:var(--bg);color:var(--text);font-family:var(--mono);font-size:14px;min-height:100vh;}
+
+/* HEADER */
+.hdr{
+  background:var(--surface);
+  border-bottom:1px solid var(--border);
+  padding:14px 18px;
+  display:flex;align-items:center;justify-content:space-between;
+  position:sticky;top:0;z-index:50;
+}
+.logo{font-family:var(--display);font-size:1rem;font-weight:800;letter-spacing:-0.02em;display:flex;align-items:center;gap:8px;}
+.logo-dot{width:8px;height:8px;background:var(--accent);border-radius:50%;animation:pulse 2s ease-in-out infinite;}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1);}50%{opacity:.4;transform:scale(.7);}}
+.logo span{color:var(--accent);}
+
+/* TABS */
+.tabs{display:flex;background:var(--surface);border-bottom:1px solid var(--border);}
+.tab{
+  flex:1;padding:12px 8px;text-align:center;
+  font-family:var(--mono);font-size:.75rem;letter-spacing:.04em;
+  color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;
+  transition:all .15s;user-select:none;
+}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+
+/* SCREENS */
+.screen{display:none;padding:16px;max-width:580px;margin:0 auto;}
+.screen.active{display:block;}
+
+/* SECTION LABEL */
+.slabel{
+  font-size:.65rem;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--muted);margin-bottom:12px;
+  display:flex;align-items:center;gap:8px;
+}
+.slabel::before{content:'';display:inline-block;width:14px;height:1px;background:var(--muted2);}
+
+/* CARD */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);padding:16px;margin-bottom:12px;}
+
+/* FIELDS */
+.field{margin-bottom:12px;}
+.field:last-child{margin-bottom:0;}
+label{display:block;font-size:.72rem;color:var(--muted);margin-bottom:5px;letter-spacing:.02em;}
+input[type="text"],input[type="number"],select{
+  width:100%;background:var(--surface2);border:1px solid var(--border);
+  border-radius:var(--r);color:var(--text);font-family:var(--mono);
+  font-size:.9rem;padding:10px 12px;outline:none;transition:border-color .15s,background .15s;
+  -webkit-appearance:none;appearance:none;
+}
+input:focus,select:focus{border-color:var(--border2);background:var(--surface3);}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.iu{position:relative;}
+.iu input{padding-right:50px;}
+.iu span{position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:.68rem;color:var(--muted);pointer-events:none;}
+select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%237a7d88' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;padding-right:32px;}
+
+/* BUTTONS */
+.btn{
+  width:100%;padding:13px;border:none;border-radius:var(--r);
+  font-family:var(--mono);font-size:.85rem;font-weight:500;cursor:pointer;
+  transition:all .15s;display:flex;align-items:center;justify-content:center;gap:8px;
+}
+.btn-accent{background:var(--accent);color:#0d0e11;}
+.btn-accent:hover{background:#d4ff26;}
+.btn-accent:active{transform:scale(.98);}
+.btn-ghost{background:transparent;color:var(--muted);border:1px solid var(--border);}
+.btn-ghost:hover{border-color:var(--border2);color:var(--text);}
+.btn-danger{background:var(--redbg);color:var(--red);border:1px solid rgba(255,92,92,.2);}
+.btn-danger:hover{background:rgba(255,92,92,.18);}
+.btn-row{display:flex;gap:10px;margin-bottom:12px;}
+.btn-row .btn{margin:0;}
+
+/* RESULT PANEL */
+.result-panel{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r2);padding:18px;margin-bottom:12px;
+}
+.result-top{margin-bottom:16px;}
+.result-lbl{font-size:.68rem;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px;}
+.result-price{
+  font-family:var(--display);font-size:3rem;font-weight:800;
+  color:var(--accent);letter-spacing:-0.04em;line-height:1;
+}
+.result-price .currency{font-size:1.4rem;vertical-align:top;margin-top:6px;display:inline-block;}
+.result-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+.ri{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:10px 12px;}
+.ri-lbl{font-size:.65rem;color:var(--muted);margin-bottom:3px;}
+.ri-val{font-size:.88rem;font-weight:500;color:var(--text);}
+.ri.hi{background:var(--accent2);border-color:rgba(200,255,0,.2);}
+.ri.hi .ri-val{color:var(--accent);}
+
+/* BARS */
+.bars{display:flex;flex-direction:column;gap:7px;margin-top:14px;padding-top:14px;border-top:1px solid var(--border);}
+.bar-item{display:flex;flex-direction:column;gap:3px;}
+.bar-top{display:flex;justify-content:space-between;font-size:.68rem;color:var(--muted);}
+.bar-track{height:3px;background:var(--surface2);border-radius:2px;overflow:hidden;}
+.bar-fill{height:100%;border-radius:2px;transition:width .4s cubic-bezier(.4,0,.2,1);}
+.c-mat{background:#5eead4;}
+.c-eng{background:#fbbf24;}
+.c-maq{background:#818cf8;}
+.c-acb{background:#f87171;}
+.c-luc{background:var(--accent);}
+
+/* HISTORY */
+.search-wrap{position:relative;margin-bottom:12px;}
+.search-wrap input{padding-left:34px;}
+.search-icon{position:absolute;left:11px;top:50%;transform:translateY(-50%);font-size:.85rem;color:var(--muted);pointer-events:none;}
+
+.proj-card{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r2);padding:13px 15px;margin-bottom:8px;
+  cursor:pointer;transition:all .15s;
+  border-left:2px solid var(--accent);
+}
+.proj-card:hover{background:var(--surface2);border-color:var(--border2);}
+.pch{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:5px;}
+.pname{font-weight:500;font-size:.9rem;}
+.pprice{font-family:var(--display);font-weight:700;color:var(--accent);font-size:.95rem;}
+.pmeta{font-size:.7rem;color:var(--muted);display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+.ptag{background:var(--accent2);color:var(--accent);border-radius:4px;padding:2px 7px;font-size:.65rem;font-weight:500;}
+.pdate{font-size:.65rem;color:var(--muted2);margin-top:4px;}
+
+/* MODAL */
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:200;align-items:flex-end;justify-content:center;}
+.overlay.open{display:flex;}
+.modal{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:18px 18px 0 0;padding:18px;
+  width:100%;max-width:580px;max-height:88vh;overflow-y:auto;
+  animation:slideUp .22s ease;
+}
+@keyframes slideUp{from{transform:translateY(36px);opacity:0;}to{transform:translateY(0);opacity:1;}}
+.mhandle{width:32px;height:3px;background:var(--muted2);border-radius:2px;margin:0 auto 14px;}
+.mtitle{font-family:var(--display);font-size:1.05rem;font-weight:700;margin-bottom:3px;}
+.msub{font-size:.72rem;color:var(--muted);margin-bottom:14px;}
+.drow{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:.82rem;}
+.drow:last-child{border-bottom:none;}
+.dkey{color:var(--muted);}
+.dval{font-weight:500;}
+.dtotal{font-family:var(--display);font-size:.95rem;font-weight:700;color:var(--accent);}
+
+/* CONFIG */
+.cfg-note{background:var(--accent2);border:1px solid rgba(200,255,0,.15);border-radius:var(--r);padding:11px 13px;font-size:.75rem;color:var(--accent);margin-bottom:12px;line-height:1.6;}
+
+/* TOAST */
+.toast{
+  position:fixed;bottom:22px;left:50%;
+  transform:translateX(-50%) translateY(70px);
+  background:var(--surface3);border:1px solid var(--border2);color:var(--text);
+  padding:10px 18px;border-radius:100px;font-size:.78rem;font-weight:500;
+  z-index:999;transition:transform .28s ease;white-space:nowrap;
+}
+.toast.show{transform:translateX(-50%) translateY(0);}
+.toast.success{background:rgba(0,229,160,.15);border-color:rgba(0,229,160,.3);color:var(--green);}
+.toast.error{background:var(--redbg);border-color:rgba(255,92,92,.3);color:var(--red);}
+
+/* SPINNER */
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(0,0,0,.2);border-top-color:#0d0e11;border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+.empty{text-align:center;padding:36px 20px;color:var(--muted);}
+.empty-ico{font-size:2rem;margin-bottom:8px;}
+.empty-txt{font-size:.82rem;}
+
+/* VENDA MODAL */
+.vtag-row{display:flex;gap:8px;margin-bottom:12px;}
+.vtag-btn{
+  flex:1;padding:9px 6px;border-radius:var(--r);font-family:var(--mono);
+  font-size:.78rem;cursor:pointer;border:1px solid var(--border);
+  background:var(--surface2);color:var(--muted);transition:all .15s;text-align:center;
+}
+.vtag-btn.sel{background:var(--accent2);border-color:rgba(200,255,0,.35);color:var(--accent);}
+.btn-green{background:rgba(0,229,160,.12);color:var(--green);border:1px solid rgba(0,229,160,.25);}
+.btn-green:hover{background:rgba(0,229,160,.2);}
+.vdivider{height:1px;background:var(--border);margin:12px 0;}
+
+/* density table in config */
+.dens-table{width:100%;font-size:.75rem;border-collapse:collapse;}
+.dens-table td{padding:6px 4px;border-bottom:1px solid var(--border);color:var(--muted);}
+.dens-table td:last-child{text-align:right;color:var(--text);}
+.dens-table tr:last-child td{border-bottom:none;}
+</style>
+</head>
+<body>
+
+<!-- TELA DE LOGIN -->
+<div id="login-screen" style="
+  display:flex; align-items:center; justify-content:center;
+  min-height:100vh; background:var(--bg); padding:24px;
+">
+  <div style="width:100%;max-width:340px;">
+    <div style="text-align:center;margin-bottom:32px;">
+      <div class="logo" style="justify-content:center;margin-bottom:8px;">
+        <span class="logo-dot"></span>
+        <span>Calc<span style="color:var(--accent)">3D</span></span>
+      </div>
+      <div style="color:var(--muted);font-size:.8rem;">Faça login para continuar</div>
+    </div>
+    <div class="card" style="padding:24px;display:flex;flex-direction:column;gap:14px;">
+      <div class="field">
+        <label>Usuário</label>
+        <input type="text" id="login-usuario" placeholder="seu usuário"
+               autocomplete="username"
+               onkeydown="if(event.key==='Enter') document.getElementById('login-senha').focus()">
+      </div>
+      <div class="field">
+        <label>Senha</label>
+        <input type="password" id="login-senha" placeholder="sua senha"
+               autocomplete="current-password"
+               onkeydown="if(event.key==='Enter') fazerLogin()">
+      </div>
+      <div id="login-erro" style="color:var(--red);font-size:.78rem;min-height:16px;"></div>
+      <button class="btn btn-accent" id="btn-login" onclick="fazerLogin()" style="width:100%;">Entrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- APP (oculto até login) -->
+<div id="app" style="display:none;">
+
+<div class="hdr">
+  <div class="logo">
+    <span class="logo-dot"></span>
+    Print<span>Cost</span>
+  </div>
+  <button onclick="logout()" style="background:none;border:none;color:var(--muted);font-family:var(--mono);font-size:.72rem;cursor:pointer;padding:4px 8px;border-radius:6px;" title="Sair">⏻ Sair</button>
+</div>
+
+<div class="tabs">
+  <div class="tab active" id="tab-calc"      onclick="showTab('calc')">Calcular</div>
+  <div class="tab"        id="tab-history"   onclick="showTab('history')">Catálogo</div>
+  <div class="tab"        id="tab-relatorio" onclick="showTab('relatorio')">Relatório</div>
+  <div class="tab"        id="tab-config"    onclick="showTab('config')">Config</div>
+</div>
+
+<!-- ═══ CALCULAR ═══════════════════════════════════════════ -->
+<div class="screen active" id="screen-calc">
+
+  <div class="card">
+    <div class="slabel">Projeto</div>
+    <div class="field">
+      <label>Nome do projeto</label>
+      <input type="text" id="projeto" placeholder="Ex: Suporte de parede">
+    </div>
+    <div class="grid2">
+      <div class="field">
+        <label>Material</label>
+        <select id="tipomaterial" onchange="updateMaterial()">
+          <option value="PLA">PLA</option>
+          <option value="PETG">PETG</option>
+          <option value="ABS" selected>ABS</option>
+          <option value="TPU">TPU</option>
+          <option value="Nylon">Nylon</option>
+          <option value="ASA">ASA</option>
+          <option value="Resina">Resina</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Valor do kg</label>
+        <div class="iu"><input type="number" id="valorkg" value="90" step="0.01" min="0"><span>R$/kg</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="slabel">Dados do OrcaSlicer</div>
+    <div class="grid2">
+      <div class="field">
+        <label>Material usado</label>
+        <div class="iu"><input type="number" id="materialusado" value="0" step="0.01" min="0"><span>metros</span></div>
+      </div>
+      <div class="field">
+        <label>Tempo de impressão</label>
+        <div class="iu"><input type="number" id="tempo" value="0" step="1" min="0"><span>min</span></div>
+      </div>
+    </div>
+    <div class="grid2">
+      <div class="field">
+        <label>Lucro desejado</label>
+        <div class="iu"><input type="number" id="lucropct" value="200" step="1" min="0"><span>%</span></div>
+      </div>
+      <div class="field">
+        <label>Outros gastos</label>
+        <div class="iu"><input type="number" id="custooutros" value="0" step="0.01" min="0"><span>R$</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RESULTADO -->
+  <div class="result-panel">
+    <div class="result-top">
+      <div class="result-lbl">Valor de venda</div>
+      <div class="result-price"><span class="currency">R$</span><span id="res-venda">0,00</span></div>
+    </div>
+    <div class="result-grid">
+      <div class="ri">
+        <div class="ri-lbl">Peso estimado</div>
+        <div class="ri-val" id="res-peso">0g</div>
+      </div>
+      <div class="ri">
+        <div class="ri-lbl">Custo material</div>
+        <div class="ri-val" id="res-material">R$ 0,00</div>
+      </div>
+      <div class="ri">
+        <div class="ri-lbl">Custo energia</div>
+        <div class="ri-val" id="res-energia">R$ 0,00</div>
+      </div>
+      <div class="ri">
+        <div class="ri-lbl">Falha + Acabamento</div>
+        <div class="ri-val" id="res-acabamento">R$ 0,00</div>
+      </div>
+      <div class="ri">
+        <div class="ri-lbl">Custo produção</div>
+        <div class="ri-val" id="res-producao">R$ 0,00</div>
+      </div>
+      <div class="ri hi">
+        <div class="ri-lbl">Lucro</div>
+        <div class="ri-val" id="res-lucro">R$ 0,00</div>
+      </div>
+    </div>
+    <div class="bars" id="bars"></div>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn btn-ghost" onclick="limpar()">↺ Limpar</button>
+    <button class="btn btn-accent" id="btn-gravar" onclick="gravar()">💾 Gravar</button>
+  </div>
+
+</div>
+
+<!-- ═══ CATÁLOGO ══════════════════════════════════════════ -->
+<div class="screen" id="screen-history">
+  <div class="search-wrap">
+    <span class="search-icon">🔍</span>
+    <input type="text" id="busca" placeholder="Buscar projeto..." oninput="filtrarProjects()" style="padding-left:34px;">
+  </div>
+  <div id="history-list">
+    <div class="empty"><div class="empty-ico">📋</div><div class="empty-txt">Clique na aba para carregar</div></div>
+  </div>
+</div>
+
+<!-- ═══ RELATÓRIO ════════════════════════════════════════════ -->
+<div class="screen" id="screen-relatorio">
+
+  <!-- filtro mês/ano -->
+  <div class="card" style="padding:12px 16px;">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <button class="btn btn-ghost" style="width:36px;padding:0;flex-shrink:0;font-size:1rem;" onclick="relMesAnterior()">‹</button>
+      <div style="flex:1;text-align:center;font-family:var(--display);font-size:1rem;font-weight:700;letter-spacing:.02em;" id="rel-titulo-mes">—</div>
+      <button class="btn btn-ghost" style="width:36px;padding:0;flex-shrink:0;font-size:1rem;" onclick="relMesSeguinte()">›</button>
+    </div>
+  </div>
+
+  <!-- KPI cards -->
+  <div class="result-grid" style="margin-bottom:12px;" id="rel-kpis">
+    <div class="ri"><div class="ri-lbl">Carregando…</div><div class="ri-val">—</div></div>
+  </div>
+
+  <!-- gráfico barras (receita vs custo por semana) -->
+  <div class="card" style="padding:16px;">
+    <div class="slabel">Receita × Custo por semana</div>
+    <canvas id="rel-chart-bar" height="160"></canvas>
+  </div>
+
+  <!-- gráfico pizza pago vs a pagar -->
+  <div class="card" style="padding:16px;">
+    <div class="slabel">Status de pagamento</div>
+    <div style="display:flex;align-items:center;gap:16px;">
+      <canvas id="rel-chart-pie" width="120" height="120" style="flex-shrink:0;"></canvas>
+      <div id="rel-pie-legend" style="font-size:.75rem;line-height:2;"></div>
+    </div>
+  </div>
+
+  <!-- lista de vendas do mês -->
+  <div class="slabel" style="margin-top:4px;">Vendas do mês</div>
+  <div id="rel-lista"></div>
+
+</div>
+
+<!-- ═══ CONFIG ═════════════════════════════════════════════ -->
+<div class="screen" id="screen-config">
+  <div class="cfg-note">⚡ KWh e Fonte são salvos localmente e usados automaticamente nos cálculos.</div>
+  <div class="card">
+    <div class="slabel">Energia</div>
+    <div class="field">
+      <label>Tarifa (da conta de luz)</label>
+      <div class="iu"><input type="number" id="cfg-kwh" step="0.001" placeholder="Ex: 0.98"><span>R$/kWh</span></div>
+    </div>
+    <div class="field">
+      <label>Potência da impressora</label>
+      <div class="iu"><input type="number" id="cfg-fonte" step="1" placeholder="Ex: 350"><span>W</span></div>
+    </div>
+    <button class="btn btn-accent" onclick="salvarConfig()">💾 Salvar</button>
+  </div>
+  <div class="card">
+    <div class="slabel">Densidades (fio 1.75mm)</div>
+    <table class="dens-table">
+      <tr><td>PLA</td><td>2.97 g/m</td></tr>
+      <tr><td>PETG</td><td>3.04 g/m</td></tr>
+      <tr><td>ABS</td><td>2.49 g/m</td></tr>
+      <tr><td>TPU</td><td>2.90 g/m</td></tr>
+      <tr><td>Nylon</td><td>2.83 g/m</td></tr>
+      <tr><td>ASA</td><td>2.54 g/m</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div class="overlay" id="modal" onclick="closeModal(event)">
+  <div class="modal">
+    <div class="mhandle"></div>
+    <div class="mtitle" id="modal-title"></div>
+    <div class="msub"   id="modal-sub"></div>
+    <div id="modal-body"></div>
+    <div style="display:flex;gap:10px;margin-top:14px;">
+      <button class="btn btn-ghost"  style="flex:1" onclick="closeModalDirect()">Fechar</button>
+      <button class="btn btn-green"  style="flex:1" id="btn-venda">💰 Registrar Venda</button>
+      <button class="btn btn-danger" style="flex:1" id="btn-delete">🗑️ Excluir</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- MODAL VENDA -->
+<div class="overlay" id="modal-venda" onclick="closeVendaModal(event)">
+  <div class="modal">
+    <div class="mhandle"></div>
+    <div class="mtitle">💰 Registrar Venda</div>
+    <div class="msub" id="venda-sub"></div>
+
+    <input type="hidden" id="venda-id-produto">
+    <input type="hidden" id="venda-produto-nome">
+    <input type="hidden" id="venda-custo-material">
+    <input type="hidden" id="venda-custo-energia">
+
+    <div class="field">
+      <label>Comprador</label>
+      <input type="text" id="venda-comprador" placeholder="Nome do comprador">
+    </div>
+    <div class="grid2">
+      <div class="field">
+        <label>Data da venda</label>
+        <input type="text" id="venda-data" placeholder="dd/mm/aaaa">
+      </div>
+      <div class="field">
+        <label>Valor de venda (R$)</label>
+        <input type="number" id="venda-valorvenda" step="0.01" min="0" oninput="recalcVenda()">
+      </div>
+    </div>
+    <div class="grid2">
+      <div class="field">
+        <label>Custo produção (R$)</label>
+        <input type="number" id="venda-custoproducao" step="0.01" min="0" oninput="recalcVenda()">
+      </div>
+      <div class="field">
+        <label>Lucro calculado (R$)</label>
+        <input type="number" id="venda-lucro" step="0.01" readonly style="opacity:.6;cursor:default;">
+      </div>
+    </div>
+    <div class="vdivider"></div>
+    <div class="field">
+      <label>Pago</label>
+      <div class="vtag-row">
+        <div class="vtag-btn sel" id="vtag-sim" onclick="setPago('sim')">✔ Sim</div>
+        <div class="vtag-btn"    id="vtag-nao" onclick="setPago('não')">✗ Não</div>
+      </div>
+    </div>
+    <div class="field">
+      <label>Observação</label>
+      <input type="text" id="venda-obs" placeholder="Opcional">
+    </div>
+    <div style="display:flex;gap:10px;margin-top:14px;">
+      <button class="btn btn-ghost" style="flex:1" onclick="closeVendaModalDirect()">Cancelar</button>
+      <button class="btn btn-accent" style="flex:1" id="btn-salvar-venda" onclick="salvarVenda()">💾 Salvar Venda</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL EDITAR VENDA -->
+<div class="overlay" id="modal-venda-edit" onclick="closeVendaEditModal(event)">
+  <div class="modal">
+    <div class="mhandle"></div>
+    <div class="mtitle">✏️ Editar Venda</div>
+    <div class="msub" id="vedit-sub"></div>
+    <input type="hidden" id="vedit-record-id">
+
+    <div class="drow"><span class="dkey">Comprador</span><span class="dval" id="vedit-comprador-lbl"></span></div>
+    <div class="drow"><span class="dkey">Data</span><span class="dval" id="vedit-data-lbl"></span></div>
+    <div class="drow"><span class="dkey">Valor venda</span><span class="dval" id="vedit-valor-lbl"></span></div>
+    <div class="drow"><span class="dkey">Lucro</span><span class="dval" id="vedit-lucro-lbl"></span></div>
+    <div class="drow"><span class="dkey">Energia</span><span class="dval" id="vedit-energia-lbl"></span></div>
+
+    <div class="vdivider"></div>
+    <div class="field">
+      <label>Status de pagamento</label>
+      <div class="vtag-row">
+        <div class="vtag-btn" id="vedit-tag-sim" onclick="setVEditPago('sim')">✔ Pago</div>
+        <div class="vtag-btn" id="vedit-tag-nao" onclick="setVEditPago('não')">✗ Não pago</div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:10px;margin-top:14px;">
+      <button class="btn btn-danger" style="flex:1" id="btn-vedit-delete" onclick="deleteVenda()">🗑️ Excluir</button>
+      <button class="btn btn-ghost"  style="flex:1" onclick="closeVendaEditDirect()">Cancelar</button>
+      <button class="btn btn-accent" style="flex:1" id="btn-vedit-save"   onclick="saveVendaEdit()">💾 Salvar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const WORKER_URL  = 'https://calculadora-3d.christian-coliveira.workers.dev';
+const BASE_ID     = 'app4gu7j0pSeCngt8';
+const TABLE       = 'projetos3d';
+const API_URL     = `${WORKER_URL}/airtable/${encodeURIComponent(TABLE)}`;
+const VENDAS_URL  = `${WORKER_URL}/airtable/vendas`;
+
+// ── AUTH ──────────────────────────────────────────────────
+function getToken(){ return sessionStorage.getItem('jwt'); }
+function setToken(t){ sessionStorage.setItem('jwt', t); }
+function clearToken(){ sessionStorage.removeItem('jwt'); }
+
+function getHeaders(){
+  return {'Authorization':`Bearer ${getToken()}`,'Content-Type':'application/json'};
+}
+// alias usado pelo código existente
+const HEADERS = new Proxy({}, { get:(_,k)=>getHeaders()[k] });
+
+function authFetch(url, opts={}){
+  opts.headers = {...(opts.headers||{}), ...getHeaders()};
+  return fetch(url, opts).then(r=>{
+    if(r.status===401){ logout(); throw new Error('Sessão expirada'); }
+    return r;
+  });
+}
+
+function logout(){
+  clearToken();
+  showLogin();
+}
+
+function showLogin(){
+  document.getElementById('app').style.display   = 'none';
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('login-erro').textContent = '';
+  document.getElementById('login-usuario').value  = '';
+  document.getElementById('login-senha').value    = '';
+}
+
+function showApp(){
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').style.display          = 'block';
+}
+
+async function fazerLogin(){
+  const usuario = document.getElementById('login-usuario').value.trim();
+  const senha   = document.getElementById('login-senha').value;
+  const btn     = document.getElementById('btn-login');
+  const erro    = document.getElementById('login-erro');
+
+  if(!usuario || !senha){ erro.textContent='Preencha todos os campos.'; return; }
+
+  btn.innerHTML = '<span class="spinner"></span> Entrando...';
+  btn.disabled  = true;
+  erro.textContent = '';
+
+  try{
+    const res  = await fetch(`${WORKER_URL}/login`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({usuario, senha})
+    });
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.erro||'Erro');
+    setToken(data.token);
+    showApp();
+    loadConfig();
+    calcular();
+  }catch(e){
+    erro.textContent = e.message==='Usuário ou senha incorretos'
+      ? 'Usuário ou senha incorretos.'
+      : 'Erro ao conectar. Tente novamente.';
+  }finally{
+    btn.innerHTML = 'Entrar';
+    btn.disabled  = false;
+  }
+}
+
+const DENSITY   = {PLA:2.97,PETG:3.04,ABS:2.49,TPU:2.90,Nylon:2.83,ASA:2.54,Resina:2.49};
+const MAT_PRICE = {PLA:80,PETG:110,ABS:90,TPU:140,Nylon:200,ASA:120,Resina:180};
+
+let allProjects = [];
+
+// ── CONFIG ────────────────────────────────────────────────
+function loadConfig(){
+  document.getElementById('cfg-kwh').value   = localStorage.getItem('kwh')   || '0.98';
+  document.getElementById('cfg-fonte').value = localStorage.getItem('fonte') || '350';
+}
+function salvarConfig(){
+  localStorage.setItem('kwh',   document.getElementById('cfg-kwh').value);
+  localStorage.setItem('fonte', document.getElementById('cfg-fonte').value);
+  showToast('Configurações salvas!','success');
+  calcular();
+}
+const getKwh   = () => parseFloat(localStorage.getItem('kwh')   || '0.98');
+const getFonte = () => parseFloat(localStorage.getItem('fonte') || '350');
+
+// ── TABS ──────────────────────────────────────────────────
+function showTab(tab){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('screen-'+tab).classList.add('active');
+  document.getElementById('tab-'+tab).classList.add('active');
+  if(tab==='history')   loadHistory();
+  if(tab==='relatorio') loadRelatorio();
+}
+
+// ── MATERIAL ──────────────────────────────────────────────
+function updateMaterial(){
+  const mat = document.getElementById('tipomaterial').value;
+  if(MAT_PRICE[mat]) document.getElementById('valorkg').value = MAT_PRICE[mat];
+  calcular();
+}
+
+// ── CALCULAR ──────────────────────────────────────────────
+const g = id => parseFloat(document.getElementById(id).value)||0;
+const fmtR = v => 'R$ '+v.toFixed(2).replace('.',',');
+
+function calcular(){
+  const metros   = g('materialusado');
+  const tempo    = g('tempo');
+  const valorkg  = g('valorkg');
+  const lucropct = g('lucropct');
+  const outros   = g('custooutros');
+  const mat      = document.getElementById('tipomaterial').value;
+  const kwh      = getKwh();
+  const fonte    = getFonte();
+
+  const dens   = DENSITY[mat]||2.97;
+  const peso   = metros * dens;
+
+  const customaterial   = (peso/1000)*valorkg;
+  const custoenergia    = (fonte/1000)*(tempo/60)*kwh;
+  const custoacabamento = customaterial*0.10;
+  const custofalha      = customaterial*0.10;
+  const custoproducao   = customaterial+custoenergia+custoacabamento+custofalha+outros;
+  const lucrors         = custoproducao*(lucropct/100);
+  const valorvenda      = custoproducao+lucrors;
+
+  document.getElementById('res-peso').textContent      = peso.toFixed(1)+'g';
+  document.getElementById('res-material').textContent  = fmtR(customaterial);
+  document.getElementById('res-energia').textContent   = fmtR(custoenergia);
+  document.getElementById('res-acabamento').textContent= fmtR(custoacabamento+custofalha);
+  document.getElementById('res-producao').textContent  = fmtR(custoproducao);
+  document.getElementById('res-lucro').textContent     = fmtR(lucrors);
+  document.getElementById('res-venda').textContent     = valorvenda.toFixed(2).replace('.',',');
+
+  // bars
+  const items = [
+    {l:'Material',  v:customaterial,          cls:'c-mat'},
+    {l:'Energia',   v:custoenergia,            cls:'c-eng'},
+    {l:'Acab+Falha',v:custoacabamento+custofalha,cls:'c-acb'},
+    {l:'Outros',    v:outros,                  cls:'c-maq'},
+    {l:'Lucro',     v:lucrors,                 cls:'c-luc'},
+  ].filter(i=>i.v>0);
+  const maxv = Math.max(...items.map(i=>i.v),0.01);
+  document.getElementById('bars').innerHTML = items.map(i=>`
+    <div class="bar-item">
+      <div class="bar-top"><span>${i.l}</span><span>${fmtR(i.v)}</span></div>
+      <div class="bar-track"><div class="bar-fill ${i.cls}" style="width:${Math.round(i.v/maxv*100)}%"></div></div>
+    </div>`).join('');
+
+  return {metros,tempo,valorkg,lucropct,outros,mat,kwh,fonte,peso,
+          customaterial,custoenergia,custoacabamento:custoacabamento+custofalha,
+          custoproducao,lucrors,valorvenda};
+}
+
+// ── GRAVAR ────────────────────────────────────────────────
+async function gravar(){
+  const projeto = document.getElementById('projeto').value.trim();
+  if(!projeto){showToast('Informe o nome do projeto!','error');return;}
+  const v = calcular();
+  const btn = document.getElementById('btn-gravar');
+  btn.innerHTML='<span class="spinner"></span> Gravando...';
+  btn.disabled=true;
+  const n = v => parseFloat(v.toFixed(2));
+
+  try{
+    // busca maior id atual para gerar o próximo
+    let maxId=0, offset=null;
+    do{
+      const url=API_URL+'?fields[]=id&sort[0][field]=id&sort[0][direction]=desc&pageSize=100'+(offset?'&offset='+offset:'');
+      const r2=await authFetch(url);
+      const d2=await r2.json();
+      if(d2.error) throw new Error(d2.error.message);
+      (d2.records||[]).forEach(r=>{ const val=parseInt(r.fields.id)||0; if(val>maxId) maxId=val; });
+      offset=d2.offset;
+    }while(offset);
+
+    const fields = {
+      id:              maxId+1,
+      projeto,
+      tipomaterial:    v.mat,
+      valorkg:         n(v.valorkg),
+      materialusado:   v.metros.toFixed(2),
+      tempo:           v.tempo.toFixed(2),
+      lucropct:        n(v.lucropct),
+      kwh:             n(v.kwh),
+      fontew:          n(v.fonte),
+      customaterial:   n(v.customaterial),
+      custoenergia:    n(v.custoenergia),
+      custoacabamento: n(v.custoacabamento),
+      custoproducao:   n(v.custoproducao),
+      custooutros:     n(v.outros),
+      lucrors:         n(v.lucrors),
+      valorvenda:      n(v.valorvenda),
+      peso:            n(v.peso),
+      cadastro:        new Date().toLocaleDateString('pt-BR'),
+    };
+
+    const res=await authFetch(API_URL,{method:'POST',body:JSON.stringify({fields})});
+    const text=await res.text();
+    console.log("RESPOSTA AIRTABLE:", text);
+    if(!res.ok) throw new Error(text);
+
+    showToast('✅ Projeto gravado! ID #'+(maxId+1),'success');
+    limpar();
+  }catch(e){
+    showToast('Erro ao gravar. Verifique a conexão.','error');
+    console.error(e);
+  }finally{
+    btn.innerHTML='💾 Gravar';
+    btn.disabled=false;
+  }
+}
+
+// ── LIMPAR ────────────────────────────────────────────────
+function limpar(){
+  document.getElementById('projeto').value='';
+  document.getElementById('materialusado').value='0';
+  document.getElementById('tempo').value='0';
+  document.getElementById('lucropct').value='200';
+  document.getElementById('custooutros').value='0';
+  calcular();
+}
+
+// ── HISTÓRICO ─────────────────────────────────────────────
+async function loadHistory(){
+  const list=document.getElementById('history-list');
+  list.innerHTML='<div class="empty"><div class="empty-ico">⏳</div><div class="empty-txt">Carregando...</div></div>';
+  try{
+    let records=[],offset=null;
+    do{
+      const url=API_URL+'?sort[0][field]=cadastro&sort[0][direction]=desc'+(offset?'&offset='+offset:'');
+      const res=await authFetch(url);
+      const data=await res.json();
+      if(data.error) throw new Error(data.error.message);
+      records=records.concat(data.records||[]);
+      offset=data.offset;
+    }while(offset);
+    allProjects=records;
+    renderHistory(records);
+  }catch(e){
+    list.innerHTML=`<div class="empty"><div class="empty-ico">❌</div><div class="empty-txt">Erro: ${e.message}</div></div>`;
+  }
+}
+
+function renderHistory(records){
+  const list=document.getElementById('history-list');
+  if(!records.length){
+    list.innerHTML='<div class="empty"><div class="empty-ico">📭</div><div class="empty-txt">Nenhum projeto encontrado.</div></div>';
+    return;
+  }
+  const fmt=v=>'R$ '+(parseFloat(v)||0).toFixed(2).replace('.',',');
+  list.innerHTML=records.map(r=>{
+    const f=r.fields;
+    const date=fmtDate(f.cadastro);
+    return `<div class="proj-card" onclick="openModal('${r.id}')">
+      <div class="pch">
+        <div class="pname">${f.projeto||'—'}</div>
+        <div class="pprice">${fmt(f.valorvenda)}</div>
+      </div>
+      <div class="pmeta">
+        <span class="ptag">${f.tipomaterial||'—'}</span>
+        <span>${f.materialusado||0}m · ${f.tempo||0}min · ${f.lucropct||0}%</span>
+      </div>
+      <div class="pdate">${date}</div>
+    </div>`;
+  }).join('');
+}
+
+function filtrarProjects(){
+  const q=document.getElementById('busca').value.toLowerCase();
+  renderHistory(allProjects.filter(r=>(r.fields.projeto||'').toLowerCase().includes(q)));
+}
+
+// ── MODAL ─────────────────────────────────────────────────
+function openModal(id){
+  const record=allProjects.find(r=>r.id===id);
+  if(!record) return;
+  const f=record.fields;
+  const fmt=v=>'R$ '+(parseFloat(v)||0).toFixed(2).replace('.',',');
+  document.getElementById('modal-title').textContent=f.projeto||'—';
+  document.getElementById('modal-sub').textContent=`${f.tipomaterial||'—'} · ${fmtDate(f.cadastro)}`;
+  document.getElementById('modal-body').innerHTML=`
+    <div class="drow"><span class="dkey">Material usado</span><span class="dval">${f.materialusado||0}m · ${f.peso||0}g</span></div>
+    <div class="drow"><span class="dkey">Tempo</span><span class="dval">${f.tempo||0} min</span></div>
+    <div class="drow"><span class="dkey">Valor do kg</span><span class="dval">${fmt(f.valorkg)}</span></div>
+    <div class="drow"><span class="dkey">Custo material</span><span class="dval">${fmt(f.customaterial)}</span></div>
+    <div class="drow"><span class="dkey">Custo energia</span><span class="dval">${fmt(f.custoenergia)}</span></div>
+    <div class="drow"><span class="dkey">Falha + Acabamento</span><span class="dval">${fmt(f.custoacabamento)}</span></div>
+    <div class="drow"><span class="dkey">Outros gastos</span><span class="dval">${fmt(f.custooutros)}</span></div>
+    <div class="drow"><span class="dkey">Custo produção</span><span class="dval">${fmt(f.custoproducao)}</span></div>
+    <div class="drow"><span class="dkey">Lucro (${f.lucropct||0}%)</span><span class="dval">${fmt(f.lucrors)}</span></div>
+    <div class="drow"><span class="dkey">KWh · Fonte</span><span class="dval">${f.kwh||'—'} R$/kWh · ${f.fontew||'—'}W</span></div>
+    <div class="drow"><span class="dkey" style="color:var(--text);font-weight:500">Valor de venda</span><span class="dval dtotal">${fmt(f.valorvenda)}</span></div>
+  `;
+  document.getElementById('btn-delete').onclick=()=>deleteRecord(id);
+  document.getElementById('btn-venda').onclick=()=>{ closeModalDirect(); openVenda(record); };
+  document.getElementById('modal').classList.add('open');
+}
+function closeModal(e){if(e.target.id==='modal') closeModalDirect();}
+function closeModalDirect(){document.getElementById('modal').classList.remove('open');}
+
+async function deleteRecord(id){
+  if(!confirm('Excluir este projeto permanentemente?')) return;
+  try{
+    const res=await authFetch(API_URL+'/'+id,{method:'DELETE'});
+    if(!res.ok) throw new Error();
+    showToast('Projeto excluído!','success');
+    closeModalDirect();
+    loadHistory();
+  }catch(e){showToast('Erro ao excluir.','error');}
+}
+
+// ── VENDA ─────────────────────────────────────────────────
+// VENDAS_URL já definida no topo via WORKER_URL
+
+let vendaPagoVal = 'sim';
+
+function openVenda(record){
+  const f = record.fields;
+  const fmt = v => (parseFloat(v)||0).toFixed(2);
+
+  document.getElementById('venda-id-produto').value     = f.id||'';
+  document.getElementById('venda-produto-nome').value   = f.projeto||'';
+  document.getElementById('venda-custo-material').value = fmt(f.customaterial);
+  document.getElementById('venda-custo-energia').value  = fmt(f.custoenergia);
+  document.getElementById('venda-sub').textContent      = f.projeto||'—';
+
+  document.getElementById('venda-valorvenda').value     = fmt(f.valorvenda);
+  document.getElementById('venda-custoproducao').value  = fmt(f.custoproducao);
+  recalcVenda();
+
+  // default date = hoje
+  const hoje = new Date();
+  const dd = String(hoje.getDate()).padStart(2,'0');
+  const mm = String(hoje.getMonth()+1).padStart(2,'0');
+  const yyyy = hoje.getFullYear();
+  document.getElementById('venda-data').value = `${dd}/${mm}/${yyyy}`;
+
+  document.getElementById('venda-comprador').value = '';
+  document.getElementById('venda-obs').value       = '';
+  setPago('sim');
+
+  document.getElementById('modal-venda').classList.add('open');
+}
+
+function recalcVenda(){
+  const vv = parseFloat(document.getElementById('venda-valorvenda').value)||0;
+  const cp = parseFloat(document.getElementById('venda-custoproducao').value)||0;
+  document.getElementById('venda-lucro').value = (vv - cp).toFixed(2);
+}
+
+function setPago(val){
+  vendaPagoVal = val;
+  document.getElementById('vtag-sim').classList.toggle('sel', val==='sim');
+  document.getElementById('vtag-nao').classList.toggle('sel', val==='não');
+}
+
+function closeVendaModal(e){ if(e.target.id==='modal-venda') closeVendaModalDirect(); }
+function closeVendaModalDirect(){ document.getElementById('modal-venda').classList.remove('open'); }
+
+async function salvarVenda(){
+  const comprador = document.getElementById('venda-comprador').value.trim();
+  const data      = document.getElementById('venda-data').value.trim();
+  const vv        = parseFloat(document.getElementById('venda-valorvenda').value)||0;
+  const cp        = parseFloat(document.getElementById('venda-custoproducao').value)||0;
+  const lucro     = parseFloat(document.getElementById('venda-lucro').value)||0;
+  const obs       = document.getElementById('venda-obs').value.trim();
+  const produto   = document.getElementById('venda-produto-nome').value;
+  const idProduto = parseInt(document.getElementById('venda-id-produto').value)||0;
+  const matV      = parseFloat(document.getElementById('venda-custo-material').value)||0;
+  const engV      = parseFloat(document.getElementById('venda-custo-energia').value)||0;
+
+  if(!comprador){ showToast('Informe o comprador!','error'); return; }
+  if(!data)     { showToast('Informe a data!','error'); return; }
+  if(!vv)       { showToast('Informe o valor de venda!','error'); return; }
+
+  const btn = document.getElementById('btn-salvar-venda');
+  btn.innerHTML = '<span class="spinner"></span> Salvando...';
+  btn.disabled  = true;
+
+  const n = v => parseFloat(v.toFixed(2));
+
+  try{
+    // busca maior id_venda atual para gerar o próximo
+    let maxId = 0;
+    let offset = null;
+    do {
+      const url = VENDAS_URL
+        + '?fields[]=id_venda&sort[0][field]=id_venda&sort[0][direction]=desc&pageSize=100'
+        + (offset ? '&offset='+offset : '');
+      const res = await authFetch(url);
+      const data2 = await res.json();
+      if(data2.error) throw new Error(data2.error.message);
+      (data2.records||[]).forEach(r => {
+        const v = parseInt(r.fields.id_venda)||0;
+        if(v > maxId) maxId = v;
+      });
+      offset = data2.offset;
+    } while(offset);
+
+    const novoId = maxId + 1;
+
+    const fields = {
+      id_venda:     novoId,
+      id_produto:   idProduto,
+      PRODUTO:      produto,
+      COMPRADOR:    comprador,
+      DATA:         data,
+      VALORVENDA:   n(vv),
+      VALORPRODUTO: n(vv),
+      CUSTO:        n(cp),
+      LUCRO:        n(lucro),
+      MATERIAL:     n(matV),
+      ENERGIA:      n(engV),
+      PAGO:         vendaPagoVal,
+      OBSERVACAO:   obs,
+    };
+
+    const res = await authFetch(VENDAS_URL,{method:'POST',body:JSON.stringify({fields})});
+    const text = await res.text();
+    if(!res.ok) throw new Error(text);
+    showToast('✅ Venda registrada! ID #'+novoId,'success');
+    closeVendaModalDirect();
+    closeModalDirect();
+  }catch(e){
+    showToast('Erro ao registrar venda.','error');
+    console.error(e);
+  }finally{
+    btn.innerHTML = '💾 Salvar Venda';
+    btn.disabled  = false;
+  }
+}
+
+// ── RELATÓRIO ─────────────────────────────────────────────
+let relMes = new Date().getMonth();   // 0-11
+let relAno = new Date().getFullYear();
+let relBarChart = null;
+let relPieChart = null;
+const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+function relMesAnterior(){ relMes--; if(relMes<0){relMes=11;relAno--;} loadRelatorio(); }
+function relMesSeguinte(){ relMes++; if(relMes>11){relMes=0;relAno++;} loadRelatorio(); }
+
+function parseDataVenda(str){
+  if(!str) return null;
+  // aceita dd/mm/aaaa ou dd/mm/aa
+  const p = str.trim().split('/');
+  if(p.length!==3) return null;
+  const year = p[2].length===2 ? '20'+p[2] : p[2];
+  return new Date(`${year}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}T12:00:00`);
+}
+
+async function loadRelatorio(){
+  document.getElementById('rel-titulo-mes').textContent = `${MESES[relMes]} ${relAno}`;
+  document.getElementById('rel-kpis').innerHTML = `<div class="ri" style="grid-column:span 2"><div class="ri-lbl">Carregando…</div><div class="ri-val">—</div></div>`;
+  document.getElementById('rel-lista').innerHTML = '<div class="empty"><div class="empty-ico">⏳</div><div class="empty-txt">Carregando...</div></div>';
+
+  try{
+    // busca todos os registros de vendas
+    let records=[], offset=null;
+    do{
+      const url = VENDAS_URL+'?sort[0][field]=id_venda&sort[0][direction]=desc'+(offset?'&offset='+offset:'');
+      const res = await authFetch(url);
+      const data = await res.json();
+      if(data.error) throw new Error(data.error.message);
+      records = records.concat(data.records||[]);
+      offset = data.offset;
+    }while(offset);
+
+    // filtra pelo mês/ano selecionado
+    const doMes = records.filter(r=>{
+      const d = parseDataVenda(r.fields.DATA);
+      return d && d.getMonth()===relMes && d.getFullYear()===relAno;
+    });
+
+    renderRelatorio(doMes);
+  }catch(e){
+    document.getElementById('rel-kpis').innerHTML = `<div class="ri" style="grid-column:span 2"><div class="ri-lbl" style="color:var(--red)">Erro: ${e.message}</div></div>`;
+  }
+}
+
+function renderRelatorio(vendas){
+  const fmt = v => 'R$ '+(parseFloat(v)||0).toFixed(2).replace('.',',');
+  const n   = v => parseFloat(v)||0;
+
+  const totalVendas   = vendas.reduce((s,r)=>s+n(r.fields.VALORVENDA),0);
+  const totalCusto    = vendas.reduce((s,r)=>s+n(r.fields.CUSTO),0);
+  const totalLucro    = vendas.reduce((s,r)=>s+n(r.fields.LUCRO),0);
+  const totalPago     = vendas.filter(r=>(r.fields.PAGO||'').toLowerCase()==='sim').reduce((s,r)=>s+n(r.fields.VALORVENDA),0);
+  const totalAPagar   = totalVendas - totalPago;
+  const qtdVendas     = vendas.length;
+  const qtdPago       = vendas.filter(r=>(r.fields.PAGO||'').toLowerCase()==='sim').length;
+  const qtdAPagar     = qtdVendas - qtdPago;
+  const margemMedia   = totalVendas>0 ? (totalLucro/totalVendas*100) : 0;
+
+  const totalEnergia  = vendas.reduce((s,r)=>s+n(r.fields.ENERGIA),0);
+
+  // KPIs
+  document.getElementById('rel-kpis').innerHTML = `
+    <div class="ri hi" style="grid-column:span 2">
+      <div class="ri-lbl">Receita total</div>
+      <div class="ri-val" style="font-family:var(--display);font-size:1.3rem;color:var(--accent)">${fmt(totalVendas)}</div>
+    </div>
+    <div class="ri">
+      <div class="ri-lbl">Lucro total</div>
+      <div class="ri-val" style="color:var(--green)">${fmt(totalLucro)}</div>
+    </div>
+    <div class="ri">
+      <div class="ri-lbl">Margem média</div>
+      <div class="ri-val">${margemMedia.toFixed(1)}%</div>
+    </div>
+    <div class="ri">
+      <div class="ri-lbl">✔ Recebido</div>
+      <div class="ri-val" style="color:var(--green)">${fmt(totalPago)}</div>
+    </div>
+    <div class="ri">
+      <div class="ri-lbl">⏳ A receber</div>
+      <div class="ri-val" style="color:var(--red)">${fmt(totalAPagar)}</div>
+    </div>
+    <div class="ri">
+      <div class="ri-lbl">Nº vendas</div>
+      <div class="ri-val">${qtdVendas}</div>
+    </div>
+    <div class="ri">
+      <div class="ri-lbl">Custo total</div>
+      <div class="ri-val">${fmt(totalCusto)}</div>
+    </div>
+    <div class="ri">
+      <div class="ri-lbl">⚡ Energia total</div>
+      <div class="ri-val">${fmt(totalEnergia)}</div>
+    </div>
+  `;
+
+  // --- Gráfico de barras: receita vs custo por semana ---
+  // agrupa em semanas do mês (S1=dias 1-7, S2=8-14, S3=15-21, S4=22-28, S5=29+)
+  const semanas = [0,1,2,3,4].map(()=>({receita:0,custo:0}));
+  vendas.forEach(r=>{
+    const d = parseDataVenda(r.fields.DATA);
+    if(!d) return;
+    const s = Math.min(Math.floor((d.getDate()-1)/7), 4);
+    semanas[s].receita += n(r.fields.VALORVENDA);
+    semanas[s].custo   += n(r.fields.CUSTO);
+  });
+  const labels = ['Sem 1','Sem 2','Sem 3','Sem 4','Sem 5'];
+
+  const ctxBar = document.getElementById('rel-chart-bar').getContext('2d');
+  if(relBarChart) relBarChart.destroy();
+  relBarChart = new Chart(ctxBar,{
+    type:'bar',
+    data:{
+      labels,
+      datasets:[
+        {label:'Receita', data:semanas.map(s=>+s.receita.toFixed(2)),
+         backgroundColor:'rgba(200,255,0,0.7)', borderRadius:4},
+        {label:'Custo',   data:semanas.map(s=>+s.custo.toFixed(2)),
+         backgroundColor:'rgba(255,92,92,0.55)', borderRadius:4},
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:true,
+      plugins:{legend:{labels:{color:'#7a7d88',font:{size:11}}}},
+      scales:{
+        x:{ticks:{color:'#7a7d88',font:{size:10}},grid:{color:'rgba(255,255,255,0.05)'}},
+        y:{ticks:{color:'#7a7d88',font:{size:10},callback:v=>'R$'+v.toFixed(0)},grid:{color:'rgba(255,255,255,0.05)'}},
+      }
+    }
+  });
+
+  // --- Gráfico pizza: pago vs a pagar ---
+  const ctxPie = document.getElementById('rel-chart-pie').getContext('2d');
+  if(relPieChart) relPieChart.destroy();
+  relPieChart = new Chart(ctxPie,{
+    type:'doughnut',
+    data:{
+      labels:['Pago','A receber'],
+      datasets:[{
+        data:[+totalPago.toFixed(2), +totalAPagar.toFixed(2)],
+        backgroundColor:['rgba(0,229,160,0.75)','rgba(255,92,92,0.65)'],
+        borderWidth:0,
+      }]
+    },
+    options:{
+      responsive:false, cutout:'65%',
+      plugins:{legend:{display:false}},
+    }
+  });
+
+  document.getElementById('rel-pie-legend').innerHTML = `
+    <div><span style="color:var(--green)">●</span> Pago — ${fmt(totalPago)} (${qtdPago} venda${qtdPago!==1?'s':''})</div>
+    <div><span style="color:var(--red)">●</span> A receber — ${fmt(totalAPagar)} (${qtdAPagar} venda${qtdAPagar!==1?'s':''})</div>
+  `;
+
+  // --- Lista de vendas ---
+  if(!vendas.length){
+    document.getElementById('rel-lista').innerHTML='<div class="empty"><div class="empty-ico">📭</div><div class="empty-txt">Nenhuma venda neste mês.</div></div>';
+    return;
+  }
+  const sorted = [...vendas].sort((a,b)=>{
+    const da=parseDataVenda(a.fields.DATA), db=parseDataVenda(b.fields.DATA);
+    return (db||0)-(da||0);
+  });
+  document.getElementById('rel-lista').innerHTML = sorted.map(r=>{
+    const f=r.fields;
+    const pago=(f.PAGO||'').toLowerCase()==='sim';
+    return `<div class="proj-card" style="border-left-color:${pago?'var(--green)':'var(--red)'};cursor:pointer;" onclick="openVendaEdit('${r.id}')">
+      <div class="pch">
+        <div class="pname" style="font-size:.82rem;">${f.PRODUTO||'—'}</div>
+        <div class="pprice">${fmt(f.VALORVENDA)}</div>
+      </div>
+      <div class="pmeta">
+        <span class="ptag" style="${pago?'':'background:var(--redbg);color:var(--red);'}">${pago?'✔ Pago':'⏳ A receber'}</span>
+        <span>${f.COMPRADOR||'—'}</span>
+        <span>Lucro: ${fmt(f.LUCRO)}</span>
+      </div>
+      <div class="pdate">${f.DATA||'—'} · toque para editar</div>
+    </div>`;
+  }).join('');
+}
+
+// ── EDITAR VENDA ──────────────────────────────────────────
+let veditPagoVal = 'sim';
+let veditRecords = []; // cache da última carga do relatório
+
+// guarda referência dos records carregados para o modal de edição poder acessar
+const _origLoadRelatorio = loadRelatorio;
+
+function openVendaEdit(airtableId){
+  // busca o record no DOM via dados do último loadRelatorio
+  // os records estão no closure de renderRelatorio — usamos fetch direto
+  const url = VENDAS_URL+'/'+airtableId;
+  authFetch(url).then(r=>r.json()).then(rec=>{
+    if(rec.error){ showToast('Erro ao carregar venda.','error'); return; }
+    const f = rec.fields;
+    const fmt = v => 'R$ '+(parseFloat(v)||0).toFixed(2).replace('.',',');
+    document.getElementById('vedit-record-id').value     = airtableId;
+    document.getElementById('vedit-sub').textContent     = f.PRODUTO||'—';
+    document.getElementById('vedit-comprador-lbl').textContent = f.COMPRADOR||'—';
+    document.getElementById('vedit-data-lbl').textContent      = f.DATA||'—';
+    document.getElementById('vedit-valor-lbl').textContent     = fmt(f.VALORVENDA);
+    document.getElementById('vedit-lucro-lbl').textContent     = fmt(f.LUCRO);
+    document.getElementById('vedit-energia-lbl').textContent   = fmt(f.ENERGIA);
+    setVEditPago((f.PAGO||'não').toLowerCase()==='sim'?'sim':'não');
+    document.getElementById('modal-venda-edit').classList.add('open');
+  }).catch(()=>showToast('Erro ao carregar venda.','error'));
+}
+
+function setVEditPago(val){
+  veditPagoVal = val;
+  document.getElementById('vedit-tag-sim').classList.toggle('sel', val==='sim');
+  document.getElementById('vedit-tag-nao').classList.toggle('sel', val==='não');
+}
+
+function closeVendaEditModal(e){ if(e.target.id==='modal-venda-edit') closeVendaEditDirect(); }
+function closeVendaEditDirect(){ document.getElementById('modal-venda-edit').classList.remove('open'); }
+
+async function saveVendaEdit(){
+  const id  = document.getElementById('vedit-record-id').value;
+  const btn = document.getElementById('btn-vedit-save');
+  btn.innerHTML='<span class="spinner"></span>';
+  btn.disabled=true;
+  try{
+    const res = await authFetch(VENDAS_URL+'/'+id,{
+      method:'PATCH',
+      body:JSON.stringify({fields:{PAGO:veditPagoVal}})
+    });
+    if(!res.ok) throw new Error(await res.text());
+    showToast(veditPagoVal==='sim'?'✅ Marcado como pago!':'✅ Marcado como não pago!','success');
+    closeVendaEditDirect();
+    loadRelatorio();
+  }catch(e){
+    showToast('Erro ao salvar.','error');
+    console.error(e);
+  }finally{
+    btn.innerHTML='💾 Salvar';
+    btn.disabled=false;
+  }
+}
+
+async function deleteVenda(){
+  if(!confirm('Excluir esta venda permanentemente?')) return;
+  const id  = document.getElementById('vedit-record-id').value;
+  const btn = document.getElementById('btn-vedit-delete');
+  btn.innerHTML='<span class="spinner"></span>';
+  btn.disabled=true;
+  try{
+    const res = await authFetch(VENDAS_URL+'/'+id,{method:'DELETE'});
+    if(!res.ok) throw new Error(await res.text());
+    showToast('Venda excluída!','success');
+    closeVendaEditDirect();
+    loadRelatorio();
+  }catch(e){
+    showToast('Erro ao excluir.','error');
+    console.error(e);
+  }finally{
+    btn.innerHTML='🗑️ Excluir';
+    btn.disabled=false;
+  }
+}
+
+// ── TOAST ─────────────────────────────────────────────────
+function showToast(msg,type=''){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.className='toast show '+type;
+  setTimeout(()=>{t.className='toast';},3200);
+}
+
+// ── DATE ──────────────────────────────────────────────────
+function parseDate(val){
+  if(!val) return null;
+  if(val.includes('/')){
+    const[d,m,y]=val.split('/');
+    const year=y.length===2?'20'+y:y;
+    return new Date(`${year}-${m.padStart(2,'0')}-${d.padStart(2,'0')}T12:00:00`);
+  }
+  return new Date(val+'T12:00:00');
+}
+function fmtDate(val){
+  const d=parseDate(val);
+  if(!d||isNaN(d)) return '—';
+  return d.toLocaleDateString('pt-BR');
+}
+
+// ── INIT ──────────────────────────────────────────────────
+if(getToken()){
+  showApp();
+  loadConfig();
+  calcular();
+  document.querySelectorAll('input[type="number"],select').forEach(el=>{
+    el.addEventListener('input',calcular);
+  });
+} else {
+  showLogin();
+  document.querySelectorAll('input[type="number"],select').forEach(el=>{
+    el.addEventListener('input',calcular);
+  });
+}
+</script>
+</div><!-- /app -->
+</body>
+</html>
