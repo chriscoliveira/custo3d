@@ -1032,12 +1032,21 @@ function relMesAnterior(){ relMes--; if(relMes<0){relMes=11;relAno--;} loadRelat
 function relMesSeguinte(){ relMes++; if(relMes>11){relMes=0;relAno++;} loadRelatorio(); }
 
 function parseDataVenda(str){
-  if(!str) return null;
-  // aceita dd/mm/aaaa ou dd/mm/aa
-  const p = str.trim().split('/');
-  if(p.length!==3) return null;
-  const year = p[2].length===2 ? '20'+p[2] : p[2];
-  return new Date(`${year}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}T12:00:00`);
+  if(!str || !str.trim()) return null;
+  str = str.trim();
+  // tenta dd/mm/aaaa, d/m/aaaa, dd/mm/aa
+  const p = str.split('/');
+  if(p.length === 3){
+    const day  = p[0].padStart(2,'0');
+    const mon  = p[1].padStart(2,'0');
+    const year = p[2].length === 2 ? '20'+p[2] : p[2];
+    const d = new Date(`${year}-${mon}-${day}T12:00:00`);
+    if(!isNaN(d)) return d;
+  }
+  // tenta formato ISO ou outros
+  const d2 = new Date(str);
+  if(!isNaN(d2)) return d2;
+  return null;
 }
 
 async function loadRelatorio(){
@@ -1190,9 +1199,9 @@ function renderRelatorio(vendas){
     return (db||0)-(da||0);
   });
   document.getElementById('rel-lista').innerHTML = sorted.map(r=>{
-    const f=r.fields;
+    const f=r;
     const pago=(f.PAGO||'').toLowerCase()==='sim';
-    return `<div class="proj-card" style="border-left-color:${pago?'var(--green)':'var(--red)'};cursor:pointer;" onclick="openVendaEdit('${r.id}')">
+    return `<div class="proj-card" style="border-left-color:${pago?'var(--green)':'var(--red)'};cursor:pointer;" onclick="openVendaEdit(${r.id_venda})">
       <div class="pch">
         <div class="pname" style="font-size:.82rem;">${f.PRODUTO||'—'}</div>
         <div class="pprice">${fmt(f.VALORVENDA)}</div>
@@ -1251,7 +1260,7 @@ async function saveVendaEdit(){
   try{
     const res = await authFetch(VENDAS_URL+'/'+id,{
       method:'PATCH',
-      body:JSON.stringify({fields:{PAGO:veditPagoVal}})
+      body:JSON.stringify({PAGO:veditPagoVal})
     });
     if(!res.ok) throw new Error(await res.text());
     showToast(veditPagoVal==='sim'?'✅ Marcado como pago!':'✅ Marcado como não pago!','success');
@@ -1388,7 +1397,7 @@ function renderGrupos(grupos, fmt, btnFn){
         </div>
         <div class="dev-vendas" style="display:none;">
           ${g.vendas.map(r=>{
-            const f=r.fields;
+            const f=r;
             return `<div style="padding:10px 16px;border-bottom:1px solid var(--border);
               display:flex;align-items:center;justify-content:space-between;gap:12px;">
               <div style="flex:1;min-width:0;">
@@ -1397,7 +1406,7 @@ function renderGrupos(grupos, fmt, btnFn){
               </div>
               <div style="text-align:right;flex-shrink:0;">
                 <div style="color:var(--accent);font-size:.82rem;">${fmt(f.VALORVENDA)}</div>
-                <button onclick="${btnFn}('${r.id}',this)" style="
+                <button onclick="${btnFn}(${r.id_venda},this)" style="
                   margin-top:4px;font-size:.66rem;padding:3px 8px;
                   background:rgba(0,229,160,.12);color:var(--green);
                   border:1px solid rgba(0,229,160,.25);border-radius:6px;
@@ -1421,7 +1430,7 @@ async function patchVendaField(id, btn, fields, msg, reload){
   const orig=btn.textContent;
   btn.textContent='...'; btn.disabled=true;
   try{
-    const res=await authFetch(VENDAS_URL+'/'+id,{method:'PATCH',body:JSON.stringify({fields})});
+    const res=await authFetch(VENDAS_URL+'/'+id,{method:'PATCH',body:JSON.stringify(fields)});
     if(!res.ok) throw new Error(await res.text());
     showToast(msg,'success');
     reload();
