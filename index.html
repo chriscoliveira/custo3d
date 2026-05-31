@@ -260,9 +260,11 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
 </div>
 
 <div class="tabs">
-  <div class="tab active" id="tab-calc"      onclick="showTab('calc')">Calcular</div>
+  <div class="tab active" id="tab-calc"      onclick="showTab('calc')">Calculadora</div>
   <div class="tab"        id="tab-history"   onclick="showTab('history')">Catálogo</div>
   <div class="tab"        id="tab-relatorio" onclick="showTab('relatorio')">Vendas</div>
+  <div class="tab"        id="tab-entregas"  onclick="showTab('entregas')">Pendentes</div>
+  <div class="tab"        id="tab-devedores" onclick="showTab('devedores')">Devedores</div>
   <div class="tab"        id="tab-config"    onclick="showTab('config')">Config</div>
 </div>
 
@@ -410,6 +412,28 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
 
 </div>
 
+<!-- ═══ DEVEDORES ════════════════════════════════════════════ -->
+<div class="screen" id="screen-devedores">
+  <div class="card" style="padding:12px 16px;display:flex;align-items:center;justify-content:space-between;">
+    <div style="font-family:var(--display);font-size:.9rem;font-weight:700;">Total a receber</div>
+    <div id="dev-total-geral" style="font-family:var(--display);font-size:1rem;color:var(--red);font-weight:700;">—</div>
+  </div>
+  <div id="dev-lista">
+    <div class="empty"><div class="empty-ico">⏳</div><div class="empty-txt">Carregando...</div></div>
+  </div>
+</div>
+
+<!-- ═══ ENTREGAS ═════════════════════════════════════════════ -->
+<div class="screen" id="screen-entregas">
+  <div class="card" style="padding:12px 16px;display:flex;align-items:center;justify-content:space-between;">
+    <div style="font-family:var(--display);font-size:.9rem;font-weight:700;">Pendentes de entrega</div>
+    <div id="ent-total" style="font-family:var(--display);font-size:1rem;color:var(--accent);font-weight:700;">—</div>
+  </div>
+  <div id="ent-lista">
+    <div class="empty"><div class="empty-ico">⏳</div><div class="empty-txt">Carregando...</div></div>
+  </div>
+</div>
+
 <!-- ═══ CONFIG ═════════════════════════════════════════════ -->
 <div class="screen" id="screen-config">
   <div class="cfg-note">⚡ KWh e Fonte são salvos localmente e usados automaticamente nos cálculos.</div>
@@ -500,6 +524,13 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
       </div>
     </div>
     <div class="field">
+      <label>Entregue</label>
+      <div class="vtag-row">
+        <div class="vtag-btn" id="vtag-entregue-sim" onclick="setEntregue('sim')">✔ Sim</div>
+        <div class="vtag-btn sel" id="vtag-entregue-nao" onclick="setEntregue('não')">✗ Não</div>
+      </div>
+    </div>
+    <div class="field">
       <label>Observação</label>
       <input type="text" id="venda-obs" placeholder="Opcional">
     </div>
@@ -543,8 +574,6 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
 
 <script>
 const WORKER_URL  = 'https://calculadora-3d.christian-coliveira.workers.dev';
-const BASE_ID     = 'app4gu7j0pSeCngt8';
-const TABLE       = 'projetos3d';
 const API_URL     = `${WORKER_URL}/projetos`;
 const VENDAS_URL  = `${WORKER_URL}/vendas`;
 
@@ -646,6 +675,8 @@ function showTab(tab){
   document.getElementById('tab-'+tab).classList.add('active');
   if(tab==='history')   loadHistory();
   if(tab==='relatorio') loadRelatorio();
+  if(tab==='devedores') loadDevedores();
+  if(tab==='entregas')  loadEntregas();
 }
 
 // ── MATERIAL ──────────────────────────────────────────────
@@ -719,11 +750,16 @@ async function gravar(){
   const n = v => parseFloat(v.toFixed(2));
 
   try{
-    // busca maior id atual
-    const r2=await authFetch(API_URL+'?orderBy=id&dir=DESC');
-    const d2=await r2.json();
-    if(d2.error) throw new Error(d2.error.message);
-    const maxId = d2.records?.length ? (parseInt(d2.records[0].id)||0) : 0;
+    // busca maior id atual para gerar o próximo
+    let maxId=0, offset=null;
+    do{
+      const url=API_URL+'?orderBy=id&dir=DESC';
+      const r2=await authFetch(url);
+      const d2=await r2.json();
+      if(d2.error) throw new Error(d2.error.message);
+      if(d2.records?.length) maxId=Math.max(maxId,...d2.records.map(r=>parseInt(r.id)||0));
+      offset=null;
+    }while(offset);
 
     const fields = {
       projeto,
@@ -776,10 +812,15 @@ async function loadHistory(){
   const list=document.getElementById('history-list');
   list.innerHTML='<div class="empty"><div class="empty-ico">⏳</div><div class="empty-txt">Carregando...</div></div>';
   try{
-    const resH2=await authFetch(API_URL+'?orderBy=cadastro&dir=DESC');
-    const dataH2=await resH2.json();
-    if(dataH2.error) throw new Error(dataH2.error.message);
-    const records=dataH2.records||[];
+    let records=[],offset=null;
+    do{
+      const url=API_URL+'?orderBy=cadastro&dir=DESC';
+      const res=await authFetch(url);
+      const data=await res.json();
+      if(data.error) throw new Error(data.error.message);
+      records=records.concat(data.records||[]);
+      offset=null;
+    }while(offset);
     allProjects=records;
     renderHistory(records);
   }catch(e){
@@ -797,7 +838,7 @@ function renderHistory(records){
   list.innerHTML=records.map(r=>{
     const f=r;
     const date=fmtDate(f.cadastro);
-    return `<div class="proj-card" onclick="openModal('${r.id}')">
+    return `<div class="proj-card" onclick="openModal(${r.id})">
       <div class="pch">
         <div class="pname">${f.projeto||'—'}</div>
         <div class="pprice">${fmt(f.valorvenda)}</div>
@@ -818,7 +859,7 @@ function filtrarProjects(){
 
 // ── MODAL ─────────────────────────────────────────────────
 function openModal(id){
-  const record=allProjects.find(r=>r.id===id);
+  const record=allProjects.find(r=>String(r.id)===String(id));
   if(!record) return;
   const f=record;
   const fmt=v=>'R$ '+(parseFloat(v)||0).toFixed(2).replace('.',',');
@@ -837,7 +878,7 @@ function openModal(id){
     <div class="drow"><span class="dkey">KWh · Fonte</span><span class="dval">${f.kwh||'—'} R$/kWh · ${f.fontew||'—'}W</span></div>
     <div class="drow"><span class="dkey" style="color:var(--text);font-weight:500">Valor de venda</span><span class="dval dtotal">${fmt(f.valorvenda)}</span></div>
   `;
-  document.getElementById('btn-delete').onclick=()=>deleteRecord(record.id);
+  document.getElementById('btn-delete').onclick=()=>deleteRecord(id);
   document.getElementById('btn-venda').onclick=()=>{ closeModalDirect(); openVenda(record); };
   document.getElementById('modal').classList.add('open');
 }
@@ -856,15 +897,16 @@ async function deleteRecord(id){
 }
 
 // ── VENDA ─────────────────────────────────────────────────
-// VENDAS_URL já definida no topo via WORKER_URL
+// ── VENDA ─────────────────────────────────────────────────
 
-let vendaPagoVal = 'sim';
+let vendaPagoVal     = 'sim';
+let vendaEntregueVal = 'não';
 
 function openVenda(record){
-  const f = record;
+  const f = record.fields;
   const fmt = v => (parseFloat(v)||0).toFixed(2);
 
-  document.getElementById('venda-id-produto').value     = f.id||'';
+  document.getElementById('venda-id-produto').value     = record.id||'';
   document.getElementById('venda-produto-nome').value   = f.projeto||'';
   document.getElementById('venda-custo-material').value = fmt(f.customaterial);
   document.getElementById('venda-custo-energia').value  = fmt(f.custoenergia);
@@ -884,6 +926,7 @@ function openVenda(record){
   document.getElementById('venda-comprador').value = '';
   document.getElementById('venda-obs').value       = '';
   setPago('sim');
+  setEntregue('não');
 
   document.getElementById('modal-venda').classList.add('open');
 }
@@ -898,6 +941,12 @@ function setPago(val){
   vendaPagoVal = val;
   document.getElementById('vtag-sim').classList.toggle('sel', val==='sim');
   document.getElementById('vtag-nao').classList.toggle('sel', val==='não');
+}
+
+function setEntregue(val){
+  vendaEntregueVal = val;
+  document.getElementById('vtag-entregue-sim').classList.toggle('sel', val==='sim');
+  document.getElementById('vtag-entregue-nao').classList.toggle('sel', val==='não');
 }
 
 function closeVendaModal(e){ if(e.target.id==='modal-venda') closeVendaModalDirect(); }
@@ -926,6 +975,21 @@ async function salvarVenda(){
   const n = v => parseFloat(v.toFixed(2));
 
   try{
+    // busca maior id_venda atual para gerar o próximo
+    let maxId = 0;
+    let offset = null;
+    do {
+      const url = VENDAS_URL
+        + '?orderBy=id_venda&dir=DESC';
+      const res = await authFetch(url);
+      const data2 = await res.json();
+      if(data2.error) throw new Error(data2.error.message);
+      if(data2.records?.length) maxId=Math.max(maxId,...data2.records.map(r=>parseInt(r.id_venda)||0));
+      offset = null;
+    } while(offset);
+
+    const novoId = maxId + 1;
+
     const fields = {
       id_produto:   idProduto,
       PRODUTO:      produto,
@@ -938,6 +1002,7 @@ async function salvarVenda(){
       MATERIAL:     n(matV),
       ENERGIA:      n(engV),
       PAGO:         vendaPagoVal,
+      entregue:     vendaEntregueVal,
       OBSERVACAO:   obs,
     };
 
@@ -982,10 +1047,15 @@ async function loadRelatorio(){
 
   try{
     // busca todos os registros de vendas
-    const resV=await authFetch(VENDAS_URL);
-    const dataV=await resV.json();
-    if(dataV.error) throw new Error(dataV.error.message);
-    const records=dataV.records||[];
+    let records=[], offset=null;
+    do{
+      const url = VENDAS_URL;
+      const res = await authFetch(url);
+      const data = await res.json();
+      if(data.error) throw new Error(data.error.message);
+      records = records.concat(data.records||[]);
+      offset = null;
+    }while(offset);
 
     // filtra pelo mês/ano selecionado
     const doMes = records.filter(r=>{
@@ -1120,7 +1190,7 @@ function renderRelatorio(vendas){
     return (db||0)-(da||0);
   });
   document.getElementById('rel-lista').innerHTML = sorted.map(r=>{
-    const f=r;
+    const f=r.fields;
     const pago=(f.PAGO||'').toLowerCase()==='sim';
     return `<div class="proj-card" style="border-left-color:${pago?'var(--green)':'var(--red)'};cursor:pointer;" onclick="openVendaEdit('${r.id}')">
       <div class="pch">
@@ -1214,6 +1284,150 @@ async function deleteVenda(){
   }finally{
     btn.innerHTML='🗑️ Excluir';
     btn.disabled=false;
+  }
+}
+
+// ── DEVEDORES ─────────────────────────────────────────────
+async function loadDevedores(){
+  const lista   = document.getElementById('dev-lista');
+  const totalEl = document.getElementById('dev-total-geral');
+  lista.innerHTML = '<div class="empty"><div class="empty-ico">⏳</div><div class="empty-txt">Carregando...</div></div>';
+  totalEl.textContent = '—';
+  try{
+    let records=[], offset=null;
+    do{
+      const url = VENDAS_URL+'?filtro=nao_pago';
+      const res  = await authFetch(url);
+      const data = await res.json();
+      if(data.error) throw new Error(data.error.message);
+      records = records.concat(data.records||[]);
+      offset  = null;
+    }while(offset);
+
+    if(!records.length){
+      lista.innerHTML='<div class="empty"><div class="empty-ico">🎉</div><div class="empty-txt">Nenhum devedor! Tudo pago.</div></div>';
+      totalEl.textContent='R$ 0,00'; return;
+    }
+    const grupos = agruparPorComprador(records);
+    const fmt    = v=>'R$ '+(parseFloat(v)||0).toFixed(2).replace('.',',');
+    totalEl.textContent = fmt(Object.values(grupos).reduce((s,g)=>s+g.total,0));
+    lista.innerHTML = renderGrupos(grupos, fmt, 'marcarPagoDevedor');
+  }catch(e){
+    lista.innerHTML=`<div class="empty"><div class="empty-ico">⚠️</div><div class="empty-txt">Erro: ${e.message}</div></div>`;
+  }
+}
+
+async function marcarPagoDevedor(id, btn){
+  await patchVendaField(id, btn, {PAGO:'sim'}, '✅ Marcado como pago!', loadDevedores);
+}
+
+// ── ENTREGAS ──────────────────────────────────────────────
+async function loadEntregas(){
+  const lista   = document.getElementById('ent-lista');
+  const totalEl = document.getElementById('ent-total');
+  lista.innerHTML='<div class="empty"><div class="empty-ico">⏳</div><div class="empty-txt">Carregando...</div></div>';
+  totalEl.textContent='—';
+  try{
+    let records=[], offset=null;
+    do{
+      const url = VENDAS_URL+'?filtro=nao_entregue';
+      const res  = await authFetch(url);
+      const data = await res.json();
+      if(data.error) throw new Error(data.error.message);
+      records = records.concat(data.records||[]);
+      offset  = null;
+    }while(offset);
+
+    if(!records.length){
+      lista.innerHTML='<div class="empty"><div class="empty-ico">📦</div><div class="empty-txt">Tudo entregue!</div></div>';
+      totalEl.textContent='0 itens'; return;
+    }
+    const grupos = agruparPorComprador(records);
+    const fmt    = v=>'R$ '+(parseFloat(v)||0).toFixed(2).replace('.',',');
+    const total  = records.length;
+    totalEl.textContent = total+' item'+(total!==1?'s':'');
+    lista.innerHTML = renderGrupos(grupos, fmt, 'marcarEntregue');
+  }catch(e){
+    lista.innerHTML=`<div class="empty"><div class="empty-ico">⚠️</div><div class="empty-txt">Erro: ${e.message}</div></div>`;
+  }
+}
+
+async function marcarEntregue(id, btn){
+  await patchVendaField(id, btn, {entregue:'sim'}, '✅ Marcado como entregue!', loadEntregas);
+}
+
+// ── helpers compartilhados ────────────────────────────────
+function agruparPorComprador(records){
+  const grupos = {};
+  records.forEach(r=>{
+    const nome = (r.COMPRADOR||'Sem nome').trim();
+    if(!grupos[nome]) grupos[nome]={vendas:[],total:0};
+    grupos[nome].vendas.push(r);
+    grupos[nome].total += parseFloat(r.VALORVENDA)||0;
+  });
+  return grupos;
+}
+
+function renderGrupos(grupos, fmt, btnFn){
+  return Object.entries(grupos)
+    .sort((a,b)=>b[1].total-a[1].total)
+    .map(([nome,g])=>`
+      <div class="card" style="padding:0;overflow:hidden;margin-bottom:0;">
+        <div style="display:flex;align-items:center;justify-content:space-between;
+          padding:12px 16px;background:var(--surface2);
+          border-bottom:1px solid var(--border);cursor:pointer;"
+          onclick="toggleDevedor(this)">
+          <div>
+            <div style="font-family:var(--display);font-size:.88rem;font-weight:700;">${nome}</div>
+            <div style="font-size:.72rem;color:var(--muted);margin-top:2px;">${g.vendas.length} item${g.vendas.length!==1?'s':''}</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="color:var(--accent);font-family:var(--display);font-size:.9rem;font-weight:700;">${fmt(g.total)}</div>
+            <div style="font-size:.68rem;color:var(--muted);margin-top:2px;">▼ ver</div>
+          </div>
+        </div>
+        <div class="dev-vendas" style="display:none;">
+          ${g.vendas.map(r=>{
+            const f=r.fields;
+            return `<div style="padding:10px 16px;border-bottom:1px solid var(--border);
+              display:flex;align-items:center;justify-content:space-between;gap:12px;">
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:.78rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${f.PRODUTO||'—'}</div>
+                <div style="font-size:.7rem;color:var(--muted);margin-top:2px;">${f.DATA||'—'}${f.OBSERVACAO?' · '+f.OBSERVACAO:''}</div>
+              </div>
+              <div style="text-align:right;flex-shrink:0;">
+                <div style="color:var(--accent);font-size:.82rem;">${fmt(f.VALORVENDA)}</div>
+                <button onclick="${btnFn}('${r.id}',this)" style="
+                  margin-top:4px;font-size:.66rem;padding:3px 8px;
+                  background:rgba(0,229,160,.12);color:var(--green);
+                  border:1px solid rgba(0,229,160,.25);border-radius:6px;
+                  cursor:pointer;font-family:var(--mono);">✔ Confirmar</button>
+              </div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>`).join('');
+}
+
+function toggleDevedor(header){
+  const vendas=header.nextElementSibling;
+  const arrow=header.querySelector('div[style*="▼"]')||header.querySelector('div[style*="▲"]');
+  const aberto=vendas.style.display!=='none';
+  vendas.style.display=aberto?'none':'block';
+  if(arrow) arrow.textContent=aberto?'▼ ver':'▲ ocultar';
+}
+
+async function patchVendaField(id, btn, fields, msg, reload){
+  const orig=btn.textContent;
+  btn.textContent='...'; btn.disabled=true;
+  try{
+    const res=await authFetch(VENDAS_URL+'/'+id,{method:'PATCH',body:JSON.stringify({fields})});
+    if(!res.ok) throw new Error(await res.text());
+    showToast(msg,'success');
+    reload();
+  }catch(e){
+    showToast('Erro ao atualizar.','error');
+    btn.textContent=orig; btn.disabled=false;
   }
 }
 
