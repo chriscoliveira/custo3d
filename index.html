@@ -903,7 +903,7 @@ let vendaPagoVal     = 'sim';
 let vendaEntregueVal = 'não';
 
 function openVenda(record){
-  const f = record.fields;
+  const f = record;
   const fmt = v => (parseFloat(v)||0).toFixed(2);
 
   document.getElementById('venda-id-produto').value     = record.id||'';
