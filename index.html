@@ -1251,7 +1251,7 @@ async function saveVendaEdit(){
   try{
     const res = await authFetch(VENDAS_URL+'/'+id,{
       method:'PATCH',
-      body:JSON.stringify({PAGO:veditPagoVal})
+      body:JSON.stringify({fields:{PAGO:veditPagoVal}})
     });
     if(!res.ok) throw new Error(await res.text());
     showToast(veditPagoVal==='sim'?'✅ Marcado como pago!':'✅ Marcado como não pago!','success');
@@ -1397,7 +1397,7 @@ function renderGrupos(grupos, fmt, btnFn){
               </div>
               <div style="text-align:right;flex-shrink:0;">
                 <div style="color:var(--accent);font-size:.82rem;">${fmt(f.VALORVENDA)}</div>
-                <button onclick="${btnFn}('${r.id}',this)" style="
+                <button onclick="${btnFn}(${r.id_venda},this)" style="
                   margin-top:4px;font-size:.66rem;padding:3px 8px;
                   background:rgba(0,229,160,.12);color:var(--green);
                   border:1px solid rgba(0,229,160,.25);border-radius:6px;
@@ -1421,7 +1421,7 @@ async function patchVendaField(id, btn, fields, msg, reload){
   const orig=btn.textContent;
   btn.textContent='...'; btn.disabled=true;
   try{
-    const res=await authFetch(VENDAS_URL+'/'+id,{method:'PATCH',body:JSON.stringify(fields)});
+    const res=await authFetch(VENDAS_URL+'/'+id,{method:'PATCH',body:JSON.stringify({fields})});
     if(!res.ok) throw new Error(await res.text());
     showToast(msg,'success');
     reload();
