@@ -1397,7 +1397,7 @@ function renderGrupos(grupos, fmt, btnFn){
               </div>
               <div style="text-align:right;flex-shrink:0;">
                 <div style="color:var(--accent);font-size:.82rem;">${fmt(f.VALORVENDA)}</div>
-                <button onclick="${btnFn}('${r.id}',this)" style="
+                <button onclick="${btnFn}(${r.id_venda},this)" style="
                   margin-top:4px;font-size:.66rem;padding:3px 8px;
                   background:rgba(0,229,160,.12);color:var(--green);
                   border:1px solid rgba(0,229,160,.25);border-radius:6px;
